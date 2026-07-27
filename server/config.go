@@ -14,6 +14,9 @@ type Config struct {
 	OpenAIModel     string
 	OpenAIReasoning string
 	AllowOrigin     string
+	// StaticDir is the built frontend (web/dist). Empty/missing in local dev,
+	// where Vite serves the app on :5273 instead — see dev.sh.
+	StaticDir string
 }
 
 func loadConfig() Config {
@@ -26,6 +29,7 @@ func loadConfig() Config {
 		OpenAIModel:     env("OPENAI_MODEL", "gpt-5.2"),
 		OpenAIReasoning: env("OPENAI_REASONING_EFFORT", "medium"),
 		AllowOrigin:     env("ALLOW_ORIGIN", "http://localhost:5273"),
+		StaticDir:       env("STATIC_DIR", "./dist"),
 	}
 }
 
