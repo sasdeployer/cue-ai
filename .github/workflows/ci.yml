@@ -7,7 +7,11 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  # The original bolt-slides engine source at repo root — dev.sh syncs this
+  # into web/src/deck-template and server/reference/engine, so it's still
+  # worth checking on its own even though it's not the product surface.
+  engine:
+    name: Slide engine (root)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,3 +22,38 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run build
+
+  # The actual product frontend. Note: `tsc --noEmit` alone is a no-op here —
+  # web/tsconfig.json is a solution-style config (files: [] + references),
+  # so it must be pointed at the real project file. See CLAUDE.md.
+  web:
+    name: Web app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc -p tsconfig.app.json --noEmit
+      - run: npm run build
+
+  # The Go API.
+  server:
+    name: Server
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      - run: go build ./...
+      - run: test -z "$(gofmt -l .)"
