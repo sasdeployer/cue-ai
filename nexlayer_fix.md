@@ -61,7 +61,7 @@ application:
         OPENAI_API_KEY: "<% OPENAI_API_KEY %>"
         ANTHROPIC_API_KEY: "<% ANTHROPIC_API_KEY %>"
     - name: postgres
-      image: mirror.gcr.io/library/postgres:16-alpine
+      image: mirror.gcr.io/pgvector/pgvector:pg16
       servicePorts:
         - 5432
       vars:

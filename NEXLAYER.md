@@ -106,7 +106,7 @@ application:
         OPENAI_API_KEY: "${OPENAI_API_KEY}"
         ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
     - name: postgres
-      image: mirror.gcr.io/library/postgres:16-alpine
+      image: mirror.gcr.io/pgvector/pgvector:pg16
       servicePorts:
         - 5432
       vars:
@@ -124,7 +124,7 @@ application:
 |-----|-------|------|------|
 | web | mirror.gcr.io/library/node:22-alpine | 5273 | web |
 | api | mirror.gcr.io/library/golang:1.22-alpine | 8080 | web |
-| db | mirror.gcr.io/library/postgres:16-alpine | 5432 | database |
+| db | mirror.gcr.io/pgvector/pgvector:pg16 | 5432 | database |
 
 ### Deployment notes
 
@@ -163,7 +163,7 @@ application:
         OPENAI_API_KEY: "${OPENAI_API_KEY}"
         ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
     - name: postgres
-      image: mirror.gcr.io/library/postgres:16-alpine
+      image: mirror.gcr.io/pgvector/pgvector:pg16
       servicePorts:
         - 5432
       vars:

@@ -10,7 +10,9 @@ services:
       - "5432:5432"
     volumes:
       - cueai-pgdata:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # No initdb mount: the server applies server/schema.sql itself on every
+      # boot (see NewStore). One code path here and on Nexlayer, where the
+      # postgres pod has no way to mount an init script.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cueai -d cueai"]
       interval: 3s

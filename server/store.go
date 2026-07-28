@@ -2,11 +2,21 @@ package main
 
 import (
 	"context"
+	_ "embed"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// schemaSQL is the whole schema, applied on every boot. Every statement is
+// IF NOT EXISTS, so this is idempotent and doubles as the migration story:
+// there is no separate migration runner, and the Nexlayer postgres pod has
+// no docker-entrypoint-initdb.d mount to lean on the way compose used to.
+//
+//go:embed schema.sql
+var schemaSQL string
 
 // Deck is one generated presentation.
 type Deck struct {
@@ -42,6 +52,10 @@ func NewStore(ctx context.Context, url string) (*Store, error) {
 	}
 	if err := pool.Ping(ctx); err != nil {
 		return nil, err
+	}
+	if _, err := pool.Exec(ctx, schemaSQL); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("apply schema: %w", err)
 	}
 	return &Store{pool: pool}, nil
 }
