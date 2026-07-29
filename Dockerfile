@@ -30,6 +30,9 @@ RUN apk add --no-cache ca-certificates
 # Copy binary and static assets
 COPY --from=backend-builder /app-backend/main .
 COPY --from=frontend-builder /app-frontend/dist ./dist
+# compile.go resolves the mirrored deck engine from ./reference/engine at RUNTIME
+# (see findEngineDir) — without it every generation fails the compile check.
+COPY --from=backend-builder /app-backend/reference ./reference
 
 # Set required runtime environment variables
 ENV PORT=8080

@@ -79,41 +79,20 @@ OPENAI_API_KEY=your_key
 |-----|----------|-------|------|
 | `app` | `PORT` | `"8080"` | plain |
 | `app` | `HOSTNAME` | `"0.0.0.0"` | plain |
-| `app` | `DATABASE_URL` | `"postgres://cueai:${POSTGRES_PASSWORD}@postgres.pod:5432/cueai?sslmode=disable"` | inter-pod |
+| `app` | `STATIC_DIR` | `"./dist"` | plain |
+| `app` | `DATABASE_URL` | `"postgres://cueai:cueai@postgres.pod:5432/cueai?sslmode=disable"` | inter-pod |
 | `app` | `ALLOW_ORIGIN` | `"<% URL %>"` | plain |
-| `app` | `OPENAI_API_KEY` | `"${OPENAI_API_KEY}"` | inter-pod |
-| `app` | `ANTHROPIC_API_KEY` | `"${ANTHROPIC_API_KEY}"` | inter-pod |
 | `postgres` | `POSTGRES_USER` | `"cueai"` | plain |
-| `postgres` | `POSTGRES_PASSWORD` | `"${POSTGRES_PASSWORD}"` | inter-pod |
+| `postgres` | `POSTGRES_PASSWORD` | `"cueai"` | plain |
 | `postgres` | `POSTGRES_DB` | `"cueai"` | plain |
+
+No `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` — see Build Notes.
 
 ### nexlayer.yaml
 
-```yaml
-application:
-  name: cue-ai
-  pods:
-    - name: app
-      image: "registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:9f8d315-fix5"
-      path: /
-      servicePorts:
-        - 8080
-      vars:
-        PORT: "8080"
-        HOSTNAME: "0.0.0.0"
-        DATABASE_URL: "postgres://cueai:${POSTGRES_PASSWORD}@postgres.pod:5432/cueai?sslmode=disable"
-        ALLOW_ORIGIN: "<% URL %>"
-        OPENAI_API_KEY: "${OPENAI_API_KEY}"
-        ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
-    - name: postgres
-      image: mirror.gcr.io/pgvector/pgvector:pg16
-      servicePorts:
-        - 5432
-      vars:
-        POSTGRES_USER: "cueai"
-        POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
-        POSTGRES_DB: "cueai"
-```
+Canonical copy lives in `nexlayer.yaml` at the repo root; it matches what is
+deployed. See Build Notes for why the LLM keys are absent and why the postgres
+password is a committed throwaway.
 <!-- nexlayer:end -->
 
 ## Nexlayer Deployment Plan
@@ -137,40 +116,55 @@ application:
 ## Build Notes
 <!-- nexlayer:section user-editable=build_notes -->
 <!-- Add notes for future builds here — preserved across re-analysis -->
+
+### The runtime image needs `reference/engine`, not just the binary
+
+`server/compile.go` compile-checks every generated deck with esbuild against the
+mirrored bolt-slides engine, and it resolves that engine **from disk at runtime**
+(`findEngineDir()` looks for `reference/engine` in the working directory, then
+next to the executable). A final stage that copies only `main` and `dist` builds
+and boots fine, serves the frontend fine, and answers `GET /api/decks` fine —
+then fails *every* generation with `event: error` ("we couldn't build a working
+deck"), because the compile check has nothing to resolve deck imports against.
+This shipped live once and was only caught by POSTing a real generate. The
+Dockerfile's final stage must keep:
+
+```dockerfile
+COPY --from=backend-builder /app-backend/reference ./reference
+```
+
+**Verify a deploy with a POST, not a GET.** `GET /` + `GET /api/decks` returning
+200 does not exercise the generation pipeline at all:
+
+```bash
+curl -s -N -X POST "$URL/api/decks" -H 'Content-Type: application/json' \
+  -d '{"prompt":"a three-slide deck introducing Cue"}' | grep -E '^event: (done|error)'
+```
+
+### No LLM key is set on purpose
+
+`config.go` picks a provider on "key is non-empty", so a placeholder value is
+worse than an absent one — it selects OpenAI and every generation 400s. Live runs
+with both keys unset: canned sample decks server-side, BYOK for visitors. Set a
+real key as an encrypted dashboard var if server-side generation is wanted.
+
+### The database is ephemeral
+
+No `volumes:` are declared, so the postgres pod re-initialises on every deploy
+and all saved decks are lost. `server/schema.sql` is embedded and applied on
+every boot, so this self-heals rather than 500ing — but a shared deck link does
+not survive a redeploy. Declaring a volume is the fix if that matters.
 <!-- nexlayer:end -->
 
 ## Nexlayer Configuration
 <!-- nexlayer:section agent-managed=nexlayer_config -->
-**Last deployed:** 2026-07-23T04:36:56Z  
+**Last deployed:** 2026-07-29  
 **Live URL:** https://zen-antelope-cue-ai.cloud.nexlayer.ai  
-**Runtime:**  · **Port:** auto-detected  
-**Deploy branch:** nexlayer  
+**Image:** `registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:8d5fb14-engine`  
+**Runtime:** Go binary serving `./dist` · **Port:** 8080  
+**Deploy branch:** nexlayer (kept fast-forwarded to `main`)  
 
-```yaml
-application:
-  name: cue-ai
-  pods:
-    - name: app
-      image: "registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:9f8d315-fix5"
-      path: /
-      servicePorts:
-        - 8080
-      vars:
-        PORT: "8080"
-        HOSTNAME: "0.0.0.0"
-        DATABASE_URL: "postgres://cueai:${POSTGRES_PASSWORD}@postgres.pod:5432/cueai?sslmode=disable"
-        ALLOW_ORIGIN: "<% URL %>"
-        OPENAI_API_KEY: "${OPENAI_API_KEY}"
-        ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
-    - name: postgres
-      image: mirror.gcr.io/pgvector/pgvector:pg16
-      servicePorts:
-        - 5432
-      vars:
-        POSTGRES_USER: "cueai"
-        POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
-        POSTGRES_DB: "cueai"
-```
+Deployed config is `nexlayer.yaml` at the repo root, verbatim.
 <!-- nexlayer:end -->
 
 ## Build History
@@ -179,6 +173,8 @@ application:
 |------|--------|-------|
 | 2026-07-23T04:18:01Z | analyzed | initial repo analysis |
 | 2026-07-23T04:36:56Z | success | deployed https://zen-antelope-cue-ai.cloud.nexlayer.ai |
+| 2026-07-29 | partial | tag `8d5fb14`: frontend + schema-on-boot fixed (`/` and `GET /api/decks` 200), but every generation failed the compile check — `reference/engine` was missing from the runtime image |
+| 2026-07-29 | success | tag `8d5fb14-engine`: engine copied into the final stage; live generate verified end to end (`event: done`, deck persisted) |
 <!-- nexlayer:end -->
 
 

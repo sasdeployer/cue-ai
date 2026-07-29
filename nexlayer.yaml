@@ -2,17 +2,23 @@ application:
   name: cue-ai
   pods:
     - name: app
-      image: "registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:9f8d315-fix5"
+      image: "registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:8d5fb14-engine"
       path: /
       servicePorts:
         - 8080
       vars:
         PORT: "8080"
         HOSTNAME: "0.0.0.0"
-        DATABASE_URL: "postgres://cueai:${POSTGRES_PASSWORD}@postgres.pod:5432/cueai?sslmode=disable"
+        # The Go process serves the built frontend from ./dist (see config.go).
+        STATIC_DIR: "./dist"
+        DATABASE_URL: "postgres://cueai:cueai@postgres.pod:5432/cueai?sslmode=disable"
         ALLOW_ORIGIN: "<% URL %>"
-        OPENAI_API_KEY: "${OPENAI_API_KEY}"
-        ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+        # No OPENAI_API_KEY / ANTHROPIC_API_KEY on purpose. config.go selects a
+        # provider on "key is non-empty", so a placeholder value is worse than
+        # none — it picks OpenAI and then every generation fails. With both unset
+        # the server serves canned sample decks and visitors use BYOK
+        # (X-User-OpenAI-Key). To enable server-side generation, set a real key
+        # as an encrypted var in the Nexlayer dashboard, not here.
     - name: postgres
       # pgvector, not stock postgres — schema.sql does CREATE EXTENSION vector.
       image: mirror.gcr.io/pgvector/pgvector:pg16
@@ -20,5 +26,8 @@ application:
         - 5432
       vars:
         POSTGRES_USER: "cueai"
-        POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+        # Not a secret: no volume is declared, so this database is ephemeral and
+        # re-initialised on every deploy. Same throwaway credentials as
+        # docker-compose.yml and config.go's default.
+        POSTGRES_PASSWORD: "cueai"
         POSTGRES_DB: "cueai"
