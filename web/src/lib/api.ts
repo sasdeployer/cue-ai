@@ -1,6 +1,20 @@
 import { byokHeaders } from './keys';
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8080';
+// Same-origin by default in a production build: the Go server serves this
+// bundle out of ./dist (STATIC_DIR) and answers /api/* on the same host, so a
+// relative base is correct on Nexlayer and anywhere else it's deployed.
+//
+// It must NOT fall back to localhost:8080 in a production build. VITE_API_BASE
+// is not set at build time (not in the Dockerfile, not in CI), so that default
+// shipped in the bundle and every deployed visitor's browser called port 8080
+// on THEIR OWN machine — ERR_CONNECTION_REFUSED for every API call, on every
+// host. The page still loaded (static assets are same-origin), so it looked
+// like generation was slow or broken rather than never leaving the browser.
+//
+// Dev is the only case that needs an absolute base: `dev.sh` serves the app
+// from Vite on :5273 while the API stays on :8080.
+export const API_BASE =
+  import.meta.env.VITE_API_BASE ?? (import.meta.env.DEV ? 'http://localhost:8080' : '');
 
 export interface DeckSummary {
   id: string;
@@ -106,12 +120,24 @@ export interface GenerateHandlers {
  * events to the handlers. Shared by generateDeck and editDeck.
  */
 async function streamSSE(url: string, body: unknown, h: GenerateHandlers): Promise<void> {
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await byokHeaders()) },
-    body: JSON.stringify(body),
-    signal: h.signal,
-  });
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await byokHeaders()) },
+      body: JSON.stringify(body),
+      signal: h.signal,
+    });
+  } catch (e) {
+    // A transport failure (DNS, refused connection, offline, CORS) rejects the
+    // fetch rather than returning a response. Unhandled, that rejection left the
+    // caller's spinner running forever with nothing in the UI — which is how a
+    // bundle pointing at the wrong API host read as "generation is slow".
+    // An aborted request is the caller's own doing, so stay quiet for it.
+    if ((e as Error)?.name === 'AbortError') return;
+    h.onError?.('Could not reach the Cue API. Check your connection and try again.');
+    return;
+  }
 
   if (!resp.ok || !resp.body) {
     let msg = 'generation failed';
