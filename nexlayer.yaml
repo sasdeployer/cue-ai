@@ -2,7 +2,7 @@ application:
   name: cue-ai
   pods:
     - name: app
-      image: "registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:661fae6-apitrim"
+      image: "registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:acee236-sameorigin"
       path: /
       servicePorts:
         - 8080
