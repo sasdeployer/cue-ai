@@ -74,6 +74,7 @@ func (c *AnthropicClient) Generate(ctx context.Context, prompt string, opts GenO
 	}
 
 	var full strings.Builder
+	var inTokens, outTokens int64
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 8*1024*1024)
 	for scanner.Scan() {
@@ -91,6 +92,17 @@ func (c *AnthropicClient) Generate(ctx context.Context, prompt string, opts GenO
 				Type string `json:"type"`
 				Text string `json:"text"`
 			} `json:"delta"`
+			// input_tokens arrives on message_start, output_tokens on message_delta.
+			Message *struct {
+				Usage struct {
+					InputTokens  int64 `json:"input_tokens"`
+					OutputTokens int64 `json:"output_tokens"`
+				} `json:"usage"`
+			} `json:"message"`
+			Usage *struct {
+				InputTokens  int64 `json:"input_tokens"`
+				OutputTokens int64 `json:"output_tokens"`
+			} `json:"usage"`
 		}
 		if err := json.Unmarshal([]byte(data), &ev); err != nil {
 			continue
@@ -99,7 +111,19 @@ func (c *AnthropicClient) Generate(ctx context.Context, prompt string, opts GenO
 			full.WriteString(ev.Delta.Text)
 			opts.delta(ev.Delta.Text)
 		}
+		// Anthropic reports output_tokens *cumulatively* — message_delta repeats a
+		// running total, it does not report an increment. Summing the events would
+		// overcount badly, so track the latest value and emit once after the
+		// stream instead of calling opts.usage per event.
+		if ev.Type == "message_start" && ev.Message != nil {
+			inTokens = ev.Message.Usage.InputTokens
+			outTokens = ev.Message.Usage.OutputTokens
+		}
+		if ev.Type == "message_delta" && ev.Usage != nil {
+			outTokens = ev.Usage.OutputTokens
+		}
 	}
+	opts.usage(Usage{PromptTokens: inTokens, CompletionTokens: outTokens})
 	if err := scanner.Err(); err != nil {
 		return full.String(), err
 	}
@@ -136,11 +160,10 @@ func (c *OpenAIClient) Generate(ctx context.Context, prompt string, opts GenOpti
 		{"role": "system", "content": systemPrompt()},
 		{"role": "user", "content": prompt},
 	}
-	content, _, err := c.streamTurn(ctx, msgs, nil)
+	content, _, err := c.streamTurn(ctx, msgs, nil, opts)
 	if err != nil {
 		return "", err
 	}
-	chunkToDelta(content, opts)
 	return content, nil
 }
 
@@ -161,12 +184,11 @@ func (c *OpenAIClient) generateAgentic(ctx context.Context, prompt string, opts 
 		if round == maxRounds-1 {
 			turnTools = nil // last round: no tools, force the deck
 		}
-		content, calls, err := c.streamTurn(ctx, messages, turnTools)
+		content, calls, err := c.streamTurn(ctx, messages, turnTools, opts)
 		if err != nil {
 			return "", err
 		}
 		if len(calls) == 0 {
-			chunkToDelta(content, opts)
 			return content, nil
 		}
 		messages = append(messages, map[string]any{
@@ -193,14 +215,19 @@ type tcAccum struct {
 }
 
 // streamTurn runs one streamed chat-completions turn, accumulating both prose
-// content and any tool calls. It never emits deltas itself — the caller decides
-// whether a turn is final and flushes prose via chunkToDelta.
-func (c *OpenAIClient) streamTurn(ctx context.Context, messages, tools []map[string]any) (string, []toolCall, error) {
+// content and any tool calls. Content is forwarded to opts.delta the instant it
+// arrives — buffering the whole turn and flushing at the end made the client sit
+// on a single spinner for the entire generation (~43s) and then receive
+// everything at once. Token usage is reported per turn via opts.usage.
+func (c *OpenAIClient) streamTurn(ctx context.Context, messages, tools []map[string]any, opts GenOptions) (string, []toolCall, error) {
 	reqBody := map[string]any{
 		"model":                 c.model,
 		"stream":                true,
 		"max_completion_tokens": 32000,
 		"messages":              messages,
+		// Ask for the usage chunk; without this the stream reports no token counts
+		// at all and the shared-key budget can't be metered.
+		"stream_options": map[string]any{"include_usage": true},
 	}
 	if len(tools) > 0 {
 		reqBody["tools"] = tools
@@ -265,13 +292,31 @@ func (c *OpenAIClient) streamTurn(ctx context.Context, messages, tools []map[str
 					} `json:"tool_calls"`
 				} `json:"delta"`
 			} `json:"choices"`
+			Usage *struct {
+				PromptTokens     int64 `json:"prompt_tokens"`
+				CompletionTokens int64 `json:"completion_tokens"`
+				TotalTokens      int64 `json:"total_tokens"`
+			} `json:"usage"`
 		}
-		if err := json.Unmarshal([]byte(data), &ev); err != nil || len(ev.Choices) == 0 {
+		if err := json.Unmarshal([]byte(data), &ev); err != nil {
+			continue
+		}
+		// The include_usage chunk arrives last and carries no choices — read it
+		// before the choices guard below, or it's dropped.
+		if ev.Usage != nil {
+			opts.usage(Usage{
+				PromptTokens:     ev.Usage.PromptTokens,
+				CompletionTokens: ev.Usage.CompletionTokens,
+				TotalTokens:      ev.Usage.TotalTokens,
+			})
+		}
+		if len(ev.Choices) == 0 {
 			continue
 		}
 		d := ev.Choices[0].Delta
 		if d.Content != "" {
 			full.WriteString(d.Content)
+			opts.delta(d.Content)
 		}
 		for _, t := range d.ToolCalls {
 			a := accum[t.Index]
@@ -307,23 +352,21 @@ func (c *OpenAIClient) streamTurn(ctx context.Context, messages, tools []map[str
 	return full.String(), calls, nil
 }
 
-// chunkToDelta flushes a final answer to the client in small pieces so the chat
-// prose (only the leading sentences are shown) still animates in.
-func chunkToDelta(s string, opts GenOptions) {
-	for _, ch := range chunkString(s, 400) {
-		opts.delta(ch)
-	}
-}
-
 // ---------- Canned fallback (no API key) ----------
 
 type CannedClient struct{}
 
 func (c *CannedClient) Name() string { return "canned" }
 
+// Generate returns the sample deck immediately. It deliberately does NOT pace
+// the stream: an 8ms sleep per 24-char chunk spent ~2.4s of an otherwise ~10ms
+// request pretending to be a model, which made a fixed template indistinguishable
+// from slow AI generation — the single reason "generation is slow" was reported
+// against a deployment that was never calling a model at all. Chunking is kept so
+// the client's delta handling is exercised on the same code path as a real
+// provider; only the artificial delay is gone.
 func (c *CannedClient) Generate(ctx context.Context, prompt string, opts GenOptions) (string, error) {
 	out := cannedDeck(prompt)
-	// simulate streaming so the UI feels alive
 	for _, chunk := range chunkString(out, 24) {
 		select {
 		case <-ctx.Done():
@@ -331,7 +374,6 @@ func (c *CannedClient) Generate(ctx context.Context, prompt string, opts GenOpti
 		default:
 		}
 		opts.delta(chunk)
-		time.Sleep(8 * time.Millisecond)
 	}
 	return out, nil
 }

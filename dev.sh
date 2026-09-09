@@ -13,14 +13,10 @@ echo "▸ syncing slides skill + engine reference…"
 cp .bolt/skills/slides/SKILL.md server/reference/SKILL.md
 cp src/styles/tokens.css       server/reference/tokens.default.css
 ls src/components > server/reference/components.list.txt
-python3 - <<'PY'
-import glob, os
-parts=[]
-for f in sorted(glob.glob('src/deck/Slide.tsx')+glob.glob('src/deck/Build.tsx')
-                +glob.glob('src/deck/Reveal.tsx')+glob.glob('src/components/*.tsx')):
-    parts.append(f"// ===== {os.path.basename(f)} =====\n"+open(f).read().rstrip())
-open('server/reference/components.full.txt','w').write("\n\n".join(parts))
-PY
+# API surface only (doc comment + prop types + signature), NOT full component
+# source: the model authors just App.tsx, so shipping implementation detail cost
+# ~21k input tokens per turn and made every generation slower for no gain.
+node scripts/gen-component-api.mjs
 rsync -a --delete src/ web/src/deck-template/src/   # pre-baked engine for the web runtime
 node scripts/gen-registry.mjs                        # regenerate the module registry
 # Mirror the engine where the server compile-check (esbuild) resolves deck imports.

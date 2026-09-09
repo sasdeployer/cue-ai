@@ -62,6 +62,33 @@ func NewStore(ctx context.Context, url string) (*Store, error) {
 
 func (s *Store) Close() { s.pool.Close() }
 
+// AddSharedUsage adds one provider round's token spend to the shared-key meter
+// and returns the new running total. Called only for generations that used the
+// server's own key — BYOK requests cost the deployment nothing and are not
+// metered. The UPDATE is atomic, so concurrent generations can't lose writes.
+func (s *Store) AddSharedUsage(ctx context.Context, u Usage) (int64, error) {
+	var total int64
+	err := s.pool.QueryRow(ctx,
+		`UPDATE shared_usage
+		    SET prompt_tokens     = prompt_tokens + $1,
+		        completion_tokens = completion_tokens + $2,
+		        total_tokens      = total_tokens + $3,
+		        updated_at        = now()
+		  WHERE id = 1
+		  RETURNING total_tokens`,
+		u.PromptTokens, u.CompletionTokens, u.total(),
+	).Scan(&total)
+	return total, err
+}
+
+// SharedUsage reports how many tokens the shared key has spent so far.
+func (s *Store) SharedUsage(ctx context.Context) (int64, error) {
+	var total int64
+	err := s.pool.QueryRow(ctx,
+		`SELECT total_tokens FROM shared_usage WHERE id = 1`).Scan(&total)
+	return total, err
+}
+
 func (s *Store) CreateDeck(ctx context.Context, d *Deck) error {
 	return s.pool.QueryRow(ctx,
 		`INSERT INTO decks (owner, title, prompt, app_tsx, tokens_css, is_public)

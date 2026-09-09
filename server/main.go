@@ -56,6 +56,7 @@ func main() {
 	r.POST("/api/decks", api.generate)
 	r.GET("/api/decks", api.list)
 	r.GET("/api/decks/:id", api.get)
+	r.GET("/api/shared-budget", api.sharedBudgetStatus)
 	r.POST("/api/decks/:id/edit", api.editDeck)
 
 	// In production (single container) this same process serves the built

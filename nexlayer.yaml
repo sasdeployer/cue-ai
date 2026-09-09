@@ -26,8 +26,20 @@ application:
         - 5432
       vars:
         POSTGRES_USER: "cueai"
-        # Not a secret: no volume is declared, so this database is ephemeral and
-        # re-initialised on every deploy. Same throwaway credentials as
-        # docker-compose.yml and config.go's default.
+        # Throwaway credentials, matching docker-compose.yml and config.go's
+        # default. Keep these in sync with DATABASE_URL above: the app pod and
+        # this pod are the only two things that read them, and a mismatch is a
+        # SASL auth crashloop (SQLSTATE 28P01), not a clear error.
         POSTGRES_PASSWORD: "cueai"
         POSTGRES_DB: "cueai"
+        # Postgres must initialise in a SUBDIRECTORY of the mount, otherwise it
+        # trips over the volume's lost+found and refuses to start.
+        PGDATA: "/var/lib/postgresql/data/pgdata"
+      volumes:
+        # Without this the database is ephemeral: every restart re-initialises
+        # from POSTGRES_* above and silently drops every deck.
+        - name: postgres-data
+          size: 10Gi
+          # Mount the volume at /var/lib/postgresql, NOT .../data — the deeper
+          # path collides with lost+found. PGDATA above points inside it.
+          mountPath: /var/lib/postgresql

@@ -54,11 +54,50 @@ export async function getDeck(id: string): Promise<Deck> {
   return r.json();
 }
 
+// Health reports which LLM this deployment is actually configured to use.
+// `llm` is "canned" when no provider key is set server-side, which means every
+// generation returns a FIXED SAMPLE TEMPLATE rather than an AI-authored deck.
+// The UI has to surface that: a template streamed into the same chat panel is
+// otherwise indistinguishable from real generation, and reads as "the AI is
+// slow" rather than "there is no AI configured".
+export interface Health {
+  ok: boolean;
+  llm: string;
+}
+
+export async function getHealth(): Promise<Health> {
+  const r = await fetch(`${API_BASE}/api/health`);
+  if (!r.ok) throw new Error('failed to load health');
+  return r.json();
+}
+
+// SharedBudget is the state of the shared demo key's token allowance. The
+// server runs on its own key so Cue is usable with zero setup; once that
+// allowance is spent, generation stops and the visitor is asked to bring their
+// own key (BYOK) instead. `capped: false` means this deployment set
+// SHARED_TOKEN_CAP=0 and has no limit — self-hosted/private, nothing to show.
+export interface SharedBudget {
+  capped: boolean;
+  used?: number;
+  cap?: number;
+  remaining?: number;
+  exhausted?: boolean;
+}
+
+export async function getSharedBudget(): Promise<SharedBudget> {
+  const r = await fetch(`${API_BASE}/api/shared-budget`);
+  if (!r.ok) throw new Error('failed to load budget');
+  return r.json();
+}
+
 export interface GenerateHandlers {
   onDelta?: (text: string) => void;
   onStep?: (step: Step) => void;
   onDone?: (result: GenerateResult) => void;
   onError?: (message: string) => void;
+  // Fired instead of onDone when the shared key is out of tokens. Nothing was
+  // generated and nothing was charged — the caller should prompt for BYOK.
+  onBudgetExhausted?: (budget: SharedBudget) => void;
   signal?: AbortSignal;
 }
 
@@ -101,6 +140,7 @@ async function streamSSE(url: string, body: unknown, h: GenerateHandlers): Promi
     if (event === 'delta') h.onDelta?.(payload.text ?? '');
     else if (event === 'step') h.onStep?.(payload as Step);
     else if (event === 'done') h.onDone?.(payload as GenerateResult);
+    else if (event === 'budget') h.onBudgetExhausted?.({ capped: true, ...payload });
     else if (event === 'error') h.onError?.(payload.error ?? 'error');
   };
 

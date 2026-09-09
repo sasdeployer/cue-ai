@@ -25,11 +25,36 @@ type Step struct {
 	Status string `json:"status"`
 }
 
+// Usage is the token cost of one generation, summed across every round of the
+// agent loop (tool rounds included) and every compile-check retry. It backs the
+// shared-key budget — see Store.AddSharedUsage.
+type Usage struct {
+	PromptTokens     int64 `json:"promptTokens"`
+	CompletionTokens int64 `json:"completionTokens"`
+	TotalTokens      int64 `json:"totalTokens"`
+}
+
+// total is the billable token count for one round. OpenAI reports a total
+// directly; Anthropic reports only input/output, so fall back to their sum.
+func (u Usage) total() int64 {
+	if u.TotalTokens > 0 {
+		return u.TotalTokens
+	}
+	return u.PromptTokens + u.CompletionTokens
+}
+
+func (u *Usage) add(o Usage) {
+	u.PromptTokens += o.PromptTokens
+	u.CompletionTokens += o.CompletionTokens
+	u.TotalTokens += o.total()
+}
+
 // GenOptions carries the streaming + agent callbacks into an LLMClient.Generate.
-// Both callbacks are optional; use the nil-safe helpers.
+// All callbacks are optional; use the nil-safe helpers.
 type GenOptions struct {
-	OnDelta func(string) // streamed prose deltas
+	OnDelta func(string) // streamed prose deltas, emitted as the model writes
 	OnStep  func(Step)   // agent activity steps
+	OnUsage func(Usage)  // token usage, once per provider round
 	Tools   bool         // enable the tool-using agent loop (OpenAI)
 }
 
@@ -42,6 +67,12 @@ func (o GenOptions) delta(s string) {
 func (o GenOptions) step(s Step) {
 	if o.OnStep != nil {
 		o.OnStep(s)
+	}
+}
+
+func (o GenOptions) usage(u Usage) {
+	if o.OnUsage != nil && (u.TotalTokens > 0 || u.PromptTokens > 0 || u.CompletionTokens > 0) {
+		o.OnUsage(u)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -23,14 +24,65 @@ type API struct {
 // BYOK form) takes priority over the server's own configured client. It's
 // used to build a one-off client for this single request only — never
 // logged, never persisted, never reused across requests.
-func (a *API) llmFor(c *gin.Context) LLMClient {
+// The bool result reports whether this request spends the SERVER's key, which
+// is what the shared-token cap meters. A visitor's own key is never metered,
+// and canned mode calls no provider at all, so neither counts as shared.
+func (a *API) llmFor(c *gin.Context) (LLMClient, bool) {
 	if k := c.GetHeader("X-User-OpenAI-Key"); k != "" {
-		return NewOpenAIClient(k, a.cfg.OpenAIModel, a.cfg.OpenAIReasoning)
+		return NewOpenAIClient(k, a.cfg.OpenAIModel, a.cfg.OpenAIReasoning), false
 	}
 	if k := c.GetHeader("X-User-Anthropic-Key"); k != "" {
-		return NewAnthropicClient(k, a.cfg.AnthropicModel)
+		return NewAnthropicClient(k, a.cfg.AnthropicModel), false
 	}
-	return a.llm
+	_, canned := a.llm.(*CannedClient)
+	return a.llm, !canned
+}
+
+// sharedBudget reports the shared key's spend against the cap. exhausted is
+// always false when the cap is disabled (SHARED_TOKEN_CAP=0).
+func (a *API) sharedBudget(ctx context.Context) (used, limit int64, exhausted bool, err error) {
+	limit = a.cfg.SharedTokenCap
+	if limit <= 0 {
+		return 0, 0, false, nil
+	}
+	used, err = a.store.SharedUsage(ctx)
+	if err != nil {
+		return 0, limit, false, err
+	}
+	return used, limit, used >= limit, nil
+}
+
+// meterShared returns an OnUsage callback that records token spend against the
+// shared key, or nil when this request is BYOK/canned and costs nothing.
+func (a *API) meterShared(shared bool) func(Usage) {
+	if !shared || a.cfg.SharedTokenCap <= 0 {
+		return nil
+	}
+	return func(u Usage) {
+		// Deliberately NOT the request context: the client may have navigated
+		// away mid-stream, but those tokens were still spent and still have to be
+		// charged against the cap, or a page-refresh loop would be free.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := a.store.AddSharedUsage(ctx, u); err != nil {
+			log.Printf("shared usage meter: %v", err)
+		}
+	}
+}
+
+// budgetPayload is the SSE `budget` event and the /api/shared-budget body. The
+// client shows the BYOK modal on `exhausted`.
+func budgetPayload(used, limit int64) gin.H {
+	remaining := limit - used
+	if remaining < 0 {
+		remaining = 0
+	}
+	return gin.H{
+		"used":      used,
+		"cap":       limit,
+		"remaining": remaining,
+		"exhausted": limit > 0 && used >= limit,
+	}
 }
 
 type generateReq struct {
@@ -97,7 +149,10 @@ func (s *stepper) finish(id, status string) {
 // the type-check, and any fix-on-retry. Attempt 1 streams prose deltas; retries
 // are silent (their progress is the step feed). Returns the parsed deck once
 // CheckDeck passes, or the last error if none did.
-func (a *API) generateChecked(ctx context.Context, c *gin.Context, llm LLMClient, prompt string, sp *stepper) (message, title, tokensCSS, appTSX string, err error) {
+// onUsage, when non-nil, is invoked with the token spend of every provider
+// round across all attempts — retries included, since a failed compile still
+// costs tokens.
+func (a *API) generateChecked(ctx context.Context, c *gin.Context, llm LLMClient, prompt string, sp *stepper, onUsage func(Usage)) (message, title, tokensCSS, appTSX string, err error) {
 	var lastErr error
 	for i := 0; i < 3; i++ {
 		p := prompt
@@ -109,8 +164,9 @@ func (a *API) generateChecked(ctx context.Context, c *gin.Context, llm LLMClient
 		}
 
 		opts := GenOptions{
-			OnStep: func(st Step) { sse(c, "step", st) },
-			Tools:  true,
+			OnStep:  func(st Step) { sse(c, "step", st) },
+			OnUsage: onUsage,
+			Tools:   true,
 		}
 		if i == 0 {
 			opts.OnDelta = func(delta string) { sse(c, "delta", gin.H{"text": delta}) }
@@ -166,7 +222,18 @@ func (a *API) generate(c *gin.Context) {
 	sseHeaders(c)
 	ctx := c.Request.Context()
 
-	message, title, tokensCSS, appTSX, err := a.generateChecked(ctx, c, a.llmFor(c), req.Prompt, newStepper(c))
+	llm, shared := a.llmFor(c)
+	if shared {
+		if used, limit, exhausted, berr := a.sharedBudget(ctx); berr != nil {
+			// Fail open: a meter outage shouldn't take generation down.
+			log.Printf("shared budget check: %v", berr)
+		} else if exhausted {
+			sse(c, "budget", budgetPayload(used, limit))
+			return
+		}
+	}
+
+	message, title, tokensCSS, appTSX, err := a.generateChecked(ctx, c, llm, req.Prompt, newStepper(c), a.meterShared(shared))
 	if err != nil {
 		log.Printf("generate error: %v", err)
 		sse(c, "error", gin.H{"error": "we couldn't build a working deck — please try again."})
@@ -218,8 +285,18 @@ func (a *API) editDeck(c *gin.Context) {
 
 	sseHeaders(c)
 
+	llm, shared := a.llmFor(c)
+	if shared {
+		if used, limit, exhausted, berr := a.sharedBudget(ctx); berr != nil {
+			log.Printf("shared budget check: %v", berr)
+		} else if exhausted {
+			sse(c, "budget", budgetPayload(used, limit))
+			return
+		}
+	}
+
 	prompt := editPrompt(req.Instruction, req.AppTSX, req.TokensCSS)
-	message, title, tokensCSS, appTSX, err := a.generateChecked(ctx, c, a.llmFor(c), prompt, newStepper(c))
+	message, title, tokensCSS, appTSX, err := a.generateChecked(ctx, c, llm, prompt, newStepper(c), a.meterShared(shared))
 	if err != nil {
 		log.Printf("edit error: %v", err)
 		sse(c, "error", gin.H{"error": "we couldn't apply that change — please try again."})
@@ -269,4 +346,22 @@ func (a *API) get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, deck)
+}
+
+// GET /api/shared-budget — how much of the shared key's allowance is left, so
+// the UI can warn before a generation rather than only after one is refused.
+// `capped: false` means this deployment runs uncapped (SHARED_TOKEN_CAP=0).
+func (a *API) sharedBudgetStatus(c *gin.Context) {
+	used, limit, _, err := a.sharedBudget(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read budget"})
+		return
+	}
+	if limit <= 0 {
+		c.JSON(http.StatusOK, gin.H{"capped": false})
+		return
+	}
+	p := budgetPayload(used, limit)
+	p["capped"] = true
+	c.JSON(http.StatusOK, p)
 }

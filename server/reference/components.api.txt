@@ -1,116 +1,269 @@
-### Annotator
-export type Stroke = { tool: Tool;
-props: ({ slide, store, active, }: { slide: number; store: Record<number, Stroke[]>; active: boolean; })
-
-### Build
-props: ({ at = 1, y = 16, children, className, style, }: { at?: number; y?: number; children: ReactNode; className?: string; style?: CSSProperties; })
-
 ### Deck
-props: ({ children }: { children: ReactNode })
-
-### Reveal
-props: ({ children, y = 26, delay = 0, className, style, }: { children: ReactNode; y?: number; delay?: number; className?: string; style?: CSSProperties; })
+── The paged presentation engine + the Slidev-style chrome (dock + rail).
+Wrap your <Slide>/<Bento>/… in <Deck>. Each top-level child is one slide.
+→ / ↓ / Space   next (reveals the next <Build>, then the next slide)
+← / ↑           previous            S sidebar     G grid view
+Home / End      first / last        A annotate    P presenter (new tab)
+F fullscreen    H hide/show the UI
+Copy verbatim; theme only via the :root tokens. ─────────────────────────
+default export: Deck({ children }: { children: ReactNode })
 
 ### Slide
-props: ({ children, center, full, className = '', style, }: { children: ReactNode; center?: boolean; full?: boolean; nav?: string; notes?: string; className?: string; style?: CSSProperties; })
+One full-viewport slide. Content REFLOWS responsively (no fixed canvas).
+- center: centered + text-align center (cover, statement, quote, CTA)
+- full:   no padding, edge-to-edge (for split / full-bleed media)
+- nav:    label shown in the thumbnail rail
+- notes:  speaker notes shown in the presenter overlay
+Non-full slides wrap content in a max-width .container.
+default export: Slide({ children, center, full, className = '', style, }: { children: ReactNode; center?: boolean; full?: boolean; nav?: string; notes?: string; className?: string; style?: CSSProperties; })
 
-### icons
-props: ()
+### Build
+Click-build (the Slidev "v-click"): this element stays hidden until the
+presenter advances to step `at` (1-based) on the current slide, then it
+animates in. Reveal content in beats: <Build at={1}>…</Build>. The deck
+advances builds before moving to the next slide.
+default export: Build({ at = 1, y = 16, children, className, style, }: { at?: number; y?: number; children: ReactNode; className?: string; style?: CSSProperties; })
+
+### Reveal
+Entrance animation: content rises + fades in when its slide becomes active
+(on mount). Wrap a headline, a grid, a card. Static in thumbnails.
+default export: Reveal({ children, y = 26, delay = 0, className, style, }: { children: ReactNode; y?: number; delay?: number; className?: string; style?: CSSProperties; })
 
 ### Accordion
-export type AccordionItem = { title: string;
-props: ({ items, single = true, defaultOpen = 0, }: { items: AccordionItem[]; single?: boolean; defaultOpen?: number | null; })
+An expand/collapse accordion. Data-driven like Bento/StatGrid. Mono index,
+a +/× morph affordance, and an accent-lit open state. Self-centers when it
+stands alone on a slide.
+<Accordion items={[{ title: 'Q', body: 'A' }, …]} />
+- single (default true): only one panel open at a time.
+- defaultOpen: index open on mount (null = all closed).
+export type AccordionItem = { title: string; body: ReactNode };
+default export: Accordion({ items, single = true, defaultOpen = 0, }: { items: AccordionItem[]; single?: boolean; defaultOpen?: number | null; })
 
 ### Agenda
-export type AgendaItem = string | { title: string;
-props: ({ kicker, title, items, }: { kicker?: string; title?: string; items: AgendaItem[]; nav?: string; notes?: string; })
+A table-of-contents slide: hairline-ruled rows with mono accent numbers.
+Pass strings, or { title, hint } for a right-aligned hint (a time, a slide
+count, an owner). Rows cascade in; the block self-centers.
+<Agenda kicker="Agenda" title="What we'll cover." items={['Problem', 'Solution',
+{ title: 'The ask', hint: '5 min' }]} />
+export type AgendaItem = string | { title: string; hint?: string };
+default export: Agenda({ kicker, title, items, }: { kicker?: string; title?: string; items: AgendaItem[]; nav?: string; notes?: string; })
 
 ### Bento
-export type BentoTile = { k?: string;
-props: ({ kicker, title, tiles, }: { kicker?: string; title?: string; tiles: BentoTile[]; nav?: string; notes?: string; })
+A full-viewport slide laid out as an asymmetric bento grid. Spans via c
+(columns of 12) and r (rows). Tiles rise in one after another; metric tiles
+get an accent tick. Collapses to one column on narrow screens.
+nav/notes are read by the engine (rail label / presenter notes).
+export type BentoTile = { k?: string; fig?: ReactNode; title?: string; body?: string; c?: number; r?: number; variant?: 'accent' | 'glow'; /** full-bleed photo tile: the image covers the tile under a bottom scrim, text anchors to the bottom. Great for brand/product decks. */ img?: string; };
+default export: Bento({ kicker, title, tiles, }: { kicker?: string; title?: string; tiles: BentoTile[]; nav?: string; notes?: string; })
 
 ### BigNumber
-props: ({ kicker, value, caption, foot, }: { kicker?: string; value: ReactNode; caption?: ReactNode; foot?: string; nav?: string; notes?: string; })
+The giant-figure drama slide — one enormous accent number, a caption, and
+an optional source line. Pass a <CountUp> as the value so it animates in.
+<BigNumber kicker="The market" value={<CountUp to={3} prefix="$" suffix="T" />}
+caption="moves through supply chains every year" foot="Source: McKinsey, 2025" />
+default export: BigNumber({ kicker, value, caption, foot, }: { kicker?: string; value: ReactNode; caption?: ReactNode; foot?: string; nav?: string; notes?: string; })
 
 ### BrowserFrame
-props: ({ url = 'app.acme.com', children, }: { url?: string; children: ReactNode; })
+Wrap a screenshot or UI mock in browser chrome — traffic dots, back/forward
+arrows, and a padlocked URL pill. children fill the body: an <img>, a
+<VisualDashboard/>, anything.
+<BrowserFrame url="app.acme.com"><img …/></BrowserFrame>
+default export: BrowserFrame({ url = 'app.acme.com', children, }: { url?: string; children: ReactNode; })
 
 ### Charts
-props: ()
+A small hand-built chart kit — bar, line/area, and donut. Each draws itself
+in when scrolled into view. All token-driven (one accent), no chart library.
+<BarChart data={[{label:'Mon',value:44}, …]} />       (values label the bars)
+<LineChart points={[12,18,15,26,22,34,30]} />         (gridlines + live end-dot)
+<DonutChart value={72} label="Adoption" />            (the number counts up)
+named export: BarChart({ data, height = 200, showValues = true, }: { data: { label: string; value: number }[]; height?: number; showValues?: boolean; })
+named export: LineChart({ points, height = 200, }: { points: number[]; height?: number; })
+named export: DonutChart({ value, label, size = 168, }: { value: number; label?: string; size?: number; })
 
 ### Chat
-export type ChatMessage = { from: 'user' | 'ai';
-props: ({ kicker, title, name = 'Assistant', messages, }: { kicker?: string; title?: string; name?: string; messages: ChatMessage[]; nav?: string; notes?: string; })
+A chat-conversation slide — user bubbles on the accent, assistant bubbles on
+the surface, inside a titled window. Each message is a click-build beat:
+advance the deck (→ / space) to reveal the exchange line by line. Ideal for
+AI-product decks.
+<Chat kicker="Ask anything" title="Plain English in, answers out."
+name="Acme" messages={[
+{ from: 'user', text: 'Why did signups dip last week?' },
+{ from: 'ai', text: 'Signups fell 12% after Tuesday's pricing change…' },
+]} />
+export type ChatMessage = { from: 'user' | 'ai'; text: string };
+default export: Chat({ kicker, title, name = 'Assistant', messages, }: { kicker?: string; title?: string; name?: string; messages: ChatMessage[]; nav?: string; notes?: string; })
 
 ### CodeWindow
-props: ({ title = 'app.tsx', code, highlight = [], }: { title?: string; code: string; highlight?: number[]; })
+A macOS-style code window with a gutter-ruled line-number column and
+restrained syntax tinting. Highlighting is intentionally minimal (keywords,
+strings, numbers, comments) to stay on-brand — one accent, no rainbow.
+<CodeWindow title="server.ts" highlight={[3]} code={`…`} />
+default export: CodeWindow({ title = 'app.tsx', code, highlight = [], }: { title?: string; code: string; highlight?: number[]; })
 
 ### Comparison
-export type CompRow = { label: string;
-props: ({ cols, rows, highlight = 0, }: { cols: string[]; rows: CompRow[]; highlight?: number; })
+A "us vs. them" feature matrix. One value column is highlighted (your
+column) and reads as a framed accent strip through the table; booleans
+render as circled check/cross chips; rows cascade in on view.
+<Comparison cols={['', 'Acme', 'Legacy']} highlight={0}
+rows={[{ label: 'Realtime sync', values: [true, false] },
+{ label: 'Price', values: ['$29', '$99'] }]} />
+values are booleans (→ ✓/✗) or strings; `highlight` indexes the value columns.
+export type CompRow = { label: string; values: (boolean | string)[] };
+default export: Comparison({ cols, rows, highlight = 0, }: { cols: string[]; rows: CompRow[]; highlight?: number; nav?: string; notes?: string; })
 
 ### Contrast
-export type ContrastPanel = { label?: string;
-props: ({ kicker, title, left, right, }: { kicker?: string; title?: string; left: ContrastPanel; right: ContrastPanel; nav?: string; notes?: string; })
+The before/after (problem → solution) slide: a muted panel against an
+accent-lit panel. Left points get faint crosses, right points get accent
+checks; the lit panel lands second, with the glow.
+<Contrast kicker="The shift" title="Stop digging. Start asking."
+left={{ label: 'Before', title: 'Dashboard sprawl', points: ['…'] }}
+right={{ label: 'With Acme', title: 'Answers on tap', points: ['…'] }} />
+export type ContrastPanel = { label?: string; title?: string; points: ReactNode[]; };
+default export: Contrast({ kicker, title, left, right, }: { kicker?: string; title?: string; left: ContrastPanel; right: ContrastPanel; nav?: string; notes?: string; })
 
 ### CountUp
-props: ({ to, from = 0, duration = 1500, decimals = 0, prefix = '', suffix = '', }: { to: number; from?: number; duration?: number; decimals?: number; prefix?: string; suffix?: string; })
+A number that animates 0 → to when its slide becomes active, with a
+quintic ease-out so the last digits settle gently. Inherits color, so
+inside a .figure / .stat-value it picks up the accent gradient. Renders
+the final value instantly in thumbnails and under reduced motion.
+default export: CountUp({ to, from = 0, duration = 1500, decimals = 0, prefix = '', suffix = '', }: { to: number; from?: number; duration?: number; decimals?: number; prefix?: string; suffix?: string; })
 
 ### Cover
-props: ({ kicker, title, subtitle, image, foot, }: { kicker?: string; title: ReactNode; subtitle?: ReactNode; image?: string; foot?: string; nav?: string; notes?: string; })
+The standardized opening slide: kicker → display title → subtitle cascade,
+an optional full-bleed background image under a theme-correct scrim, and an
+optional foot line (date · presenter · confidential).
+<Cover kicker="Acme · Series A" title={<><span className="accent-text">Acme</span></>}
+subtitle="Answers, not dashboards." image="/cover.webp" foot="June 2026 · Dana Kim" />
+default export: Cover({ kicker, title, subtitle, image, foot, }: { kicker?: string; title: ReactNode; subtitle?: ReactNode; image?: string; foot?: string; nav?: string; notes?: string; })
 
 ### Globe
-export type GlobeMarker = { location: [number, number];
-export type GlobeArc = { from: [number, number];
-export type GlobeStat = { value: ReactNode;
-props: ({ kicker, title, body, markers, arcs, stats, flip, }: { kicker?: string; title: ReactNode; body?: ReactNode; markers: GlobeMarker[]; arcs?: GlobeArc[]; stats?: GlobeStat[]; flip?: boolean; nav?: string; notes?: string; })
+A 3D-globe slide, hand-built on Canvas2D (no WebGL, no dependencies): a
+slowly-rotating, drag-to-spin dotted earth with accent markers at real
+coordinates, DOM-bound label chips that ride the globe (and fade behind
+it), great-circle arcs between locations, and stat rows beside it. Colors
+are probed from the live tokens, so re-theming recolors the globe too.
+ONLY for a genuinely geographic story — users or revenue by country,
+market entry, presence.
+<Globe kicker="Everywhere" title="Live in 28 regions."
+markers={[{ location: [37.77, -122.41], size: 0.08, label: 'sfo1', value: '221k evt/s' }, …]}
+arcs={[{ from: [37.77, -122.41], to: [51.5, -0.12] }]}
+stats={[{ value: '48%', label: 'North America' }, …]} />
+Thumbnails render a static disc; reduced motion stops the auto-spin.
+export type GlobeMarker = { location: [number, number]; size?: number; /** chip anchored to the marker (e.g. a city or region code) */ label?: string; /** accent badge beside the label (e.g. a share or throughput) */ value?: string; };
+export type GlobeArc = { from: [number, number]; to: [number, number] };
+export type GlobeStat = { value: ReactNode; label: string };
+default export: Globe({ kicker, title, body, markers, arcs, stats, flip, }: { kicker?: string; title: ReactNode; body?: ReactNode; markers: GlobeMarker[]; arcs?: GlobeArc[]; stats?: GlobeStat[]; flip?: boolean; nav?: string; notes?: string; })
 
 ### Marquee
-props: ({ items, duration = 26, }: { items: string[]; duration?: number; })
+A continuously-scrolling strip — logo wall, value props, tech stack.
+Items are separated by small accent diamonds; hovering pauses the strip.
+default export: Marquee({ items, duration = 26, }: { items: string[]; duration?: number; })
 
 ### Pricing
-export type Tier = { name: string;
-props: ({ kicker, title, tiers, }: { kicker?: string; title?: string; tiers: Tier[]; nav?: string; notes?: string; })
+A pricing slide: 2–4 tier cards, one highlighted with an accent badge.
+Feature lists get accent checks; cards rise in staggered.
+<Pricing kicker="Pricing" title="Simple, honest plans." tiers={[
+{ name: 'Starter', price: '$29', period: '/mo', features: ['…'] },
+{ name: 'Pro', price: '$79', period: '/mo', features: ['…'], highlight: true, badge: 'Most popular' },
+]} />
+export type Tier = { name: string; price: string; period?: string; blurb?: string; features?: string[]; highlight?: boolean; badge?: string; };
+default export: Pricing({ kicker, title, tiers, }: { kicker?: string; title?: string; tiers: Tier[]; nav?: string; notes?: string; })
 
 ### Quote
-props: ({ text, name, role, img, image, }: { text: string; name?: string; role?: string; img?: string; image?: string; nav?: string; notes?: string; })
+A pull-quote slide: an accent quotation mark, the quote at display scale,
+and an attribution row with a photo or auto-initials avatar (`img`). Pass
+`image` for a full-bleed background photo under a scrim (brand decks).
+Don't wrap the text in quotation marks — the mark provides them.
+<Quote text="It changed how we ship." name="Dana Kim" role="VP Engineering, Acme" />
+default export: Quote({ text, name, role, img, image, }: { text: string; name?: string; role?: string; img?: string; image?: string; nav?: string; notes?: string; })
 
 ### Section
-props: ({ n, kicker, title, image, }: { n?: number | string; kicker?: string; title: ReactNode; image?: string; nav?: string; notes?: string; })
+A chapter divider slide — a full-bleed breather between parts of the deck.
+An enormous outlined "ghost" number sits behind a centered kicker + display
+title, over stronger accent corner glows. Works with no image (ideal for
+data/B2B decks) — or pass `image` for a full-bleed photo under a scrim
+(brand decks): the ghost number and title sit on top.
+<Section n={2} kicker="Part two" title={<>How it <span className="accent-text">works.</span></>} />
+default export: Section({ n, kicker, title, image, }: { n?: number | string; kicker?: string; title: ReactNode; image?: string; nav?: string; notes?: string; })
 
 ### Split
-props: ({ kicker, title, body, media, flip, }: { kicker?: string; title: ReactNode; body?: ReactNode; media: ReactNode; flip?: boolean; nav?: string; notes?: string; })
+A full-bleed feature slide: text one side, edge-to-edge media the other,
+separated by a hairline. The text cascades in (kicker → title → body);
+`flip` swaps sides. Stacks vertically on narrow screens.
+default export: Split({ kicker, title, body, media, flip, }: { kicker?: string; title: ReactNode; body?: ReactNode; media: ReactNode; flip?: boolean; nav?: string; notes?: string; })
 
 ### SpotlightCard
-props: ({ children }: { children: ReactNode })
+A card with a cursor-following accent treatment (the Linear/Vercel hover):
+a soft interior bloom AND a border ring that lights up around the pointer.
+Wrap content; it provides the card shell + padding.
+<SpotlightCard><div className="kicker">…</div><h3>…</h3><p>…</p></SpotlightCard>
+default export: SpotlightCard({ children }: { children: ReactNode })
 
 ### StatGrid
-export type Stat = { value?: ReactNode;
-props: ({ kicker, title, stats, }: { kicker?: string; title?: string; stats: Stat[]; nav?: string; notes?: string; })
+A full-viewport proof slide: responsive auto-fit stat cards, each with an
+accent tick and a staggered rise-in. Pass a <CountUp> as a stat `value`
+so figures animate in.
+export type Stat = { value?: ReactNode; label: string; caption?: string };
+default export: StatGrid({ kicker, title, stats, }: { kicker?: string; title?: string; stats: Stat[]; nav?: string; notes?: string; })
 
 ### Steps
-export type Step = { title: string;
-props: ({ kicker, title, items, }: { kicker?: string; title?: string; items: Step[]; nav?: string; notes?: string; })
+A horizontal numbered process (the "how it works" slide): mono number
+rings joined by a connector that draws in left-to-right as each step
+reveals. Stacks vertically on narrow screens (connectors hide).
+<Steps kicker="How it works" title="Three steps to live data." items={[
+{ title: 'Connect', body: 'Point it at your warehouse.' }, …]} />
+export type Step = { title: string; body?: ReactNode };
+default export: Steps({ kicker, title, items, }: { kicker?: string; title?: string; items: Step[]; nav?: string; notes?: string; })
 
 ### Table
-export type TableColumn = | string | { label: string;
+A data-rich table done properly: uppercase mono-ruled header, hairline rows,
+right-aligned tabular numerals (first column left for labels), an optional
+accent column or row, staggered row reveal, and a source caption. For real
+data — a feature matrix belongs in <Comparison>. Self-centers standalone.
+<Table
+columns={['Region', 'ARR', 'Growth', { label: 'NRR', align: 'center' }]}
+rows={[['North America', '$2.4M', '+38%', '124%'], …]}
+highlightCol={1} caption="Company data, FY25" />
+Keep it ≤5 columns and ≤7 rows — a paged slide can't scroll.
+export type TableColumn = | string | { label: string; align?: 'left' | 'right' | 'center' };
 export type TableCell = string | number | ReactNode;
-props: ({ columns, rows, highlightCol, highlightRow, caption, }: { columns: TableColumn[]; rows: TableCell[][]; highlightCol?: number; highlightRow?: number; caption?: string; })
+default export: Table({ columns, rows, highlightCol, highlightRow, caption, }: { columns: TableColumn[]; rows: TableCell[][]; highlightCol?: number; highlightRow?: number; caption?: string; })
 
 ### Tabs
-export type Tab = { label: string;
-props: ({ tabs, defaultTab = 0, }: { tabs: Tab[]; defaultTab?: number; })
+Tabbed content with a sliding accent pill (framer layoutId, scoped per
+instance so multiple Tabs coexist) and a cross-fade between panels. The bar
+is keyboard-navigable (←/→) and the block self-centers when standalone.
+<Tabs tabs={[{ label: 'Overview', content: <…/> }, …]} />
+export type Tab = { label: string; content: ReactNode };
+default export: Tabs({ tabs, defaultTab = 0, }: { tabs: Tab[]; defaultTab?: number; })
 
 ### Team
-export type Person = { name: string;
-props: ({ kicker, title, people, }: { kicker?: string; title?: string; people: Person[]; nav?: string; notes?: string; })
+A people-grid slide: photo avatars (or auto-initials on the accent) with
+name + role. Cards rise in staggered; the grid wraps responsively.
+<Team kicker="The team" title="Built by operators." people={[
+{ name: 'Dana Kim', role: 'CEO · ex-Stripe' },
+{ name: 'Ade Obi', role: 'CTO', img: '/ade.webp' }, …]} />
+export type Person = { name: string; role?: string; img?: string };
+default export: Team({ kicker, title, people, }: { kicker?: string; title?: string; people: Person[]; nav?: string; notes?: string; })
 
 ### TiltCard
-props: ({ children }: { children: ReactNode })
+Mouse-tracked 3D tilt + glare, smoothed with springs. The pointer is
+measured against a STATIC outer frame — never the tilting element itself —
+so the tilt can't feed back into its own hit-box and wobble. Wrap ONE hero
+visual per slide. Flat in thumbnails and under reduced motion.
+default export: TiltCard({ children }: { children: ReactNode })
 
 ### Timeline
-export type TimelineItem = { time: string;
-props: ({ items }: { items: TimelineItem[] })
+A vertical timeline / roadmap. The connector draws in, milestones are
+glowing rings with accent cores, and time labels are mono chips. Reveals
+in sequence when scrolled into view; self-centers when standalone.
+<Timeline items={[{ time: 'Q1', title: 'Launch', body: '…' }, …]} />
+export type TimelineItem = { time: string; title: string; body?: ReactNode };
+default export: Timeline({ items, }: { items: TimelineItem[]; nav?: string; notes?: string; })
 
 ### VisualDashboard
-props: ()
+Example analytics visual (a self-drawing dashboard mock): KPI cards with
+live sparklines, a gridded area chart, and a weekly bar row. ONLY use it
+when the deck is genuinely about data — otherwise build a topic-fit visual
+in the same .vframe shell. Draws in when its slide becomes active.
+default export: VisualDashboard()

@@ -17,7 +17,11 @@ func cannedDeck(prompt string) string {
 		title = strings.TrimSpace(title[:48])
 	}
 
-	msg := "Here's a starter deck on " + topic + ". Add an ANTHROPIC_API_KEY to server/.env for fully AI-authored decks."
+	// Never tell a visitor to edit server/.env — on a hosted deployment they have
+	// no shell. The BYOK form in Settings is the one action that actually works
+	// for them, and it takes effect on the very next generation.
+	msg := "This is a sample deck on " + topic +
+		" — a fixed template, not AI-authored. Add your own API key in Settings to generate a real deck from your prompt."
 
 	app := strings.ReplaceAll(cannedAppTemplate, "{{TOPIC}}", topic)
 

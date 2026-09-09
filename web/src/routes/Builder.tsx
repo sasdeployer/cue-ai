@@ -6,8 +6,10 @@ import PromptBox from '../components/PromptBox';
 import DeckPreview from '../components/DeckPreview';
 import StepGroup from '../components/StepGroup';
 import ShareModal from '../components/ShareModal';
-import { generateDeck, editDeck, getDeck } from '../lib/api';
-import type { GenerateHandlers, Step } from '../lib/api';
+import BudgetModal from '../components/BudgetModal';
+import { generateDeck, editDeck, getDeck, getHealth } from '../lib/api';
+import type { GenerateHandlers, SharedBudget, Step } from '../lib/api';
+import { hasProviderKey } from '../lib/keys';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -42,9 +44,18 @@ export default function Builder() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [budget, setBudget] = useState<SharedBudget | null>(null);
+  // True only when the server has no provider key AND the visitor hasn't supplied
+  // one — i.e. every deck here is the fixed sample template. A visitor's own key
+  // overrides the server's client per-request (see llmFor), so holding one means
+  // generation is real regardless of how the server booted.
+  const [sampleMode, setSampleMode] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const started = useRef(false); // guard StrictMode double-run
+  // The call the shared-key cap refused, replayed verbatim once the visitor
+  // supplies their own key — so a refusal costs them their place, not their prompt.
+  const refused = useRef<(() => void) | null>(null);
 
   // Drive a generate/edit SSE call, wiring streaming prose + the final deck into
   // chat + preview. `p` is the prompt shown as the user message; `stream` performs
@@ -97,6 +108,22 @@ export default function Builder() {
           });
           setBusy(false);
         },
+        onBudgetExhausted: (b) => {
+          // Nothing was generated and nothing was charged. Stash the exact call
+          // so BudgetModal's "save key and retry" can replay it.
+          refused.current = () => void runStreamRef.current?.(p, placeholder, stream);
+          setBudget(b);
+          setMessages((m) => {
+            const copy = [...m];
+            copy[copy.length - 1] = {
+              ...copy[copy.length - 1],
+              text: '⚠️ The shared key has run out of tokens.',
+              streaming: false,
+            };
+            return copy;
+          });
+          setBusy(false);
+        },
         onError: (msg) => {
           setError(msg);
           setMessages((m) => {
@@ -110,6 +137,11 @@ export default function Builder() {
     },
     [],
   );
+
+  // runStream replays itself on BYOK retry; a ref avoids a self-referential
+  // useCallback dependency.
+  const runStreamRef = useRef(runStream);
+  runStreamRef.current = runStream;
 
   const run = useCallback(
     (p: string) => runStream(p, 'Designing your deck…', (h) => generateDeck(p, h)),
@@ -139,6 +171,24 @@ export default function Builder() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  // Ask the server what it's actually running. Re-checked when the budget modal
+  // closes, since saving a key there flips this off. A failed probe leaves the
+  // notice hidden: guessing "sample mode" on a network blip would be worse than
+  // saying nothing.
+  useEffect(() => {
+    let live = true;
+    getHealth()
+      .then((h) => {
+        if (!live) return;
+        const byok = hasProviderKey('openai') || hasProviderKey('anthropic');
+        setSampleMode(h.llm === 'canned' && !byok);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [budget]);
 
   const onSubmit = (p: string) => {
     // follow-up on a loaded deck → edit in place (hot-swaps into the live preview,
@@ -198,6 +248,32 @@ export default function Builder() {
             background: 'var(--bg-1)',
           }}
         >
+          {sampleMode && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 10,
+                padding: '10px 18px',
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--bg-2)',
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: 'var(--fg-muted)',
+              }}
+            >
+              <span style={{ color: 'var(--accent)', flexShrink: 0 }}>Sample mode</span>
+              <span>
+                This deployment has no API key, so decks are a fixed template — not written
+                from your prompt.{' '}
+                <Link to="/dashboard" style={{ color: 'var(--fg)', textDecoration: 'underline' }}>
+                  Add your key
+                </Link>{' '}
+                to generate for real.
+              </span>
+            </div>
+          )}
+
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 18px' }}>
             {messages.length === 0 && (
               <div style={{ color: 'var(--fg-dim)', fontSize: 14, marginTop: 20 }}>
@@ -267,6 +343,19 @@ export default function Builder() {
           url={`${window.location.origin}/build?deckId=${deck.id}`}
           title={deck.title}
           onClose={() => setSharing(false)}
+        />
+      )}
+
+      {budget && (
+        <BudgetModal
+          budget={budget}
+          onKeySaved={() => {
+            setBudget(null);
+            const replay = refused.current;
+            refused.current = null;
+            replay?.();
+          }}
+          onClose={() => setBudget(null)}
         />
       )}
     </div>
