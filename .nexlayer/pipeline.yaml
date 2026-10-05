@@ -1,0 +1,38 @@
+# How this app goes from a commit to live on Nexlayer.
+# Written by Nexlayer from what it read in this repo; owned by your coding
+# agent from here. Every agent and CI runs exactly this. Secret VALUES are
+# never written here.
+app: cue-ai
+deploy:
+  config: nexlayer.yaml
+  environment: zen-antelope
+  url: 'https://zen-antelope-cue-ai.cloud.nexlayer.ai'
+  through: nexlayer-mcp          # validate -> deploy -> status; nothing deploys around it
+build:
+  - pod: app             # the nexlayer.yaml pod that runs it
+    image: cue-ai         # registry.nexlayer.io/<your user id>/cue-ai:<tag>
+    context: .
+    dockerfile: Dockerfile
+    platform: linux/amd64
+    tag: git-sha                 # immutable; "latest" is rejected
+    # read from `nexlayer.yaml`
+services:
+  - name: app
+    port: 8080
+    public: true   # read from `nexlayer.yaml`
+  - name: postgres
+    image: 'mirror.gcr.io/pgvector/pgvector:pg16'
+    port: 5432
+    public: false   # read from `nexlayer.yaml`
+verify:                         # done means all of these pass
+  - service: app
+    status: running             # nexlayer_check_deployment_status
+  - service: postgres
+    status: running             # nexlayer_check_deployment_status
+  - url: /                       # the live URL answers 2xx/3xx with a real page
+secrets:                        # names only — values live in Nexlayer
+  - name: ANTHROPIC_API_KEY
+    status: not_set_live_ok
+  - name: OPENAI_API_KEY
+    status: not_set_live_ok
+rollback: redeploy the previous image tag from the Nexlayer deploy history

@@ -10,7 +10,7 @@ ask Nexlayer for it (see "How to deploy").
 | --- | --- |
 | Name | `cue-ai` |
 | Repo | `https://github.com/sasdeployer/cue-ai` on `main` |
-| Planned | 2026-10-05T17:21:12.401Z |
+| Planned | 2026-10-05T18:14:44.983Z |
 | Registered with Nexlayer | not yet |
 
 `.nexlayer/plan.lock` pins the commit this plan was written against. If HEAD
@@ -73,7 +73,7 @@ Nothing. Every claim in this plan was read from the repo.
 
 ## What "it worked" means
 
-`.nexlayer/checks.json` lists what to verify per service. Verify it — do not
+The `verify` list in `.nexlayer/pipeline.yaml` is what to check. Check it — do not
 assume a deploy worked.
 
 ## Stop and ask the human

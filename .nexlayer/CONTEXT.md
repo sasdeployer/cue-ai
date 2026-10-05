@@ -5,7 +5,7 @@ starts with the same picture. Read this before proposing infrastructure
 changes.
 
 - **Repo** `https://github.com/sasdeployer/cue-ai` on `main`
-- **Analyzed** 2026-10-05T17:21:12.401Z
+- **Analyzed** 2026-10-05T18:14:44.983Z
 
 ## Stack
 

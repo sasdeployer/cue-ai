@@ -3,7 +3,7 @@
   "app": "cue-ai",
   "repo": "https://github.com/sasdeployer/cue-ai",
   "branch": "main",
-  "analyzedAt": "2026-10-05T17:21:12.401Z",
+  "analyzedAt": "2026-10-05T18:14:44.983Z",
   "registered": false,
   "techStack": [
     {
@@ -146,6 +146,21 @@
   "legacyDocs": [
     "NEXLAYER.md",
     "nexlayer.skills",
-    "nexlayer_fix.md"
+    "nexlayer_fix.md",
+    ".github/workflows/nexlayer.yml"
+  ],
+  "builds": [
+    {
+      "pod": "app",
+      "image": "cue-ai",
+      "context": ".",
+      "dockerfile": "Dockerfile",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "nexlayer.yaml"
+        ]
+      }
+    }
   ]
 }

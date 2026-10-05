@@ -11,7 +11,7 @@ domains, logs, fixing it in production.
 2. `.nexlayer/todo.md` — what is still open, and who closes it.
 3. The skill for the job (below). Something broken: `.nexlayer/TROUBLESHOOTING.md`.
 
-Older Nexlayer files in this repo (`NEXLAYER.md`, `nexlayer.skills`, `nexlayer_fix.md`) predate this
+Older Nexlayer files in this repo (`NEXLAYER.md`, `nexlayer.skills`, `nexlayer_fix.md`, `.github/workflows/nexlayer.yml`) predate this
 plan. Where they disagree with `.nexlayer/`, follow `.nexlayer/`.
 
 ## Connect to Nexlayer
@@ -30,12 +30,18 @@ If you don't have them, ask the human to run `npx @nexlayer/mcp-install`
 These are copies, dated inside each file. If `nexlayer_get_skills` reports
 a newer version, follow that one instead.
 
+## Continuous deployment
+
+Unless `.github/workflows/nexlayer-deploy.yml` already exists, offer it to the human once —
+the exact question and the files to write are in
+`.nexlayer/skills/continuous-deployment/SKILL.md`.
+
 ## Rules
 
 - Never ask the human to paste a key into the chat, and never write one into
   this repo. Send them to the Secrets link in PRODUCTION.md.
 - A fix made inside the running app is lost on the next deploy. Put the same
   fix in the code.
-- A deploy isn't done until it is verified: `.nexlayer/checks.json`.
+- A deploy isn't done until it is verified: `verify` in `.nexlayer/pipeline.yaml`.
 - Stop and ask before deleting data, tearing down a deployment, or making
   something public that the plan keeps internal.

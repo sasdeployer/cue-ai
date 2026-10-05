@@ -49,4 +49,4 @@ Full guide: `.nexlayer/skills/debug-nexlayer/SKILL.md`.
 
 ## Done means verified
 
-`nexlayer_check_deployment_status` healthy for every service, and the URL answers with a real page — see `.nexlayer/checks.json`.
+`nexlayer_check_deployment_status` healthy for every service, and the URL answers with a real page — the `verify` list in `.nexlayer/pipeline.yaml`.
