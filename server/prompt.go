@@ -22,6 +22,7 @@ var componentsList string
 // App.tsx and is told never to rewrite a component, so ~21k tokens of
 // implementation detail was re-sent on every agent round and every compile
 // retry for nothing.
+//
 //go:embed reference/components.api.txt
 var componentsAPI string
 
