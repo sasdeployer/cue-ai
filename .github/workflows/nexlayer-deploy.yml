@@ -1,0 +1,37 @@
+# Continuous deployment to Nexlayer: every push to main builds the image,
+# deploys this repo's nexlayer.yaml through the Nexlayer MCP (the same tools a
+# coding agent uses — one deploy path, one history in Nexlayer), and verifies
+# it's live. Set up by a coding agent from .nexlayer/skills/continuous-deployment.
+#
+# Needs one repo secret: NEXLAYER_API_KEY (Nexlayer → Settings → API keys).
+name: Deploy to Nexlayer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# One production deploy at a time; a newer push waits rather than racing.
+concurrency:
+  group: nexlayer-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sign in to the image registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Builds every image in .nexlayer/pipeline.yaml, deploys nexlayer.yaml
+      # through the Nexlayer MCP, and runs its verify checks.
+      - name: Build, deploy and verify
+        env:
+          NEXLAYER_API_KEY: ${{ secrets.NEXLAYER_API_KEY }}
+        run: python3 .github/nexlayer/deploy.py
