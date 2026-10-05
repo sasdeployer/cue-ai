@@ -7,6 +7,7 @@ Every tool below takes the same two values. They are already known:
 | applicationName | `cue-ai` |
 | environment | `zen-antelope` |
 | services | `app`, `postgres` |
+| inside the debug proxy | `cue-ai-app-service.zen-antelope.svc.cluster.local:8080`, `cue-ai-postgres-service.zen-antelope.svc.cluster.local:5432` |
 | URL | <https://zen-antelope-cue-ai.cloud.nexlayer.ai> |
 
 ## First move, by symptom
@@ -15,8 +16,9 @@ Every tool below takes the same two values. They are already known:
 | --- | --- |
 | Deploy didn't come up, or a service keeps restarting | `nexlayer_check_deployment_status` → `nexlayer_get_deployment_logs` for that service → `nexlayer_get_deployment_events` |
 | The site answers but with errors (500s, blank page) | `nexlayer_get_deployment_logs`, then the debug proxy (below) to look inside |
-| One service can't reach another | debug proxy → `nexlayer_debug_proxy_exec` / `nexlayer_debug_proxy_http` against `<service>.pod:<port>` (never localhost) |
-| Database errors, missing tables or data | debug proxy → `nexlayer_debug_db_query` against `postgres` |
+| One service can't reach another | debug proxy → `nexlayer_debug_proxy_exec` / `nexlayer_debug_proxy_http` against the full service name above (never localhost) |
+| Database errors, missing tables or data | debug proxy → `nexlayer_debug_db_query` with host `cue-ai-postgres-service.zen-antelope.svc.cluster.local` and the user, password and database from `DATABASE_URL` in `nexlayer.yaml` |
+| Status shows more services than `nexlayer.yaml` lists | a leftover from an older config — it keeps running after it leaves the file. Ask the human before removing it. |
 | Image won't pull | rebuild and push with `nexlayer_build_and_push_image` (below) |
 | Wrong config or env var in production | fix it in the code / `nexlayer.yaml` and redeploy; for an emergency, `nexlayer_debug_file_edit` then `nexlayer_debug_pod_restart` |
 
@@ -24,7 +26,9 @@ Every tool below takes the same two values. They are already known:
 
 1. `nexlayer_debug_deploy_proxy` with environment `zen-antelope` and applicationName `cue-ai` — once per session; it sleeps when idle.
 2. `nexlayer_debug_namespace_info` — the running services and their exact names.
-3. Then what the symptom needs: `nexlayer_debug_proxy_http` (e.g. `http://app.pod:8080/`), `nexlayer_debug_proxy_exec`, `nexlayer_debug_db_query`, `nexlayer_debug_shell_open`, `nexlayer_debug_file_list` / `nexlayer_debug_file_edit`.
+   Inside the proxy, address services by their full name (table above). The
+   environment is shared, so a bare `<service>.pod` can reach another app.
+3. Then what the symptom needs: `nexlayer_debug_proxy_http` (e.g. `http://cue-ai-app-service.zen-antelope.svc.cluster.local:8080/`), `nexlayer_debug_proxy_exec`, `nexlayer_debug_db_query`, `nexlayer_debug_shell_open`, `nexlayer_debug_file_list` / `nexlayer_debug_file_edit`.
 4. After any change inside, restart: `nexlayer_debug_pod_restart` (one service) or `nexlayer_debug_pod_restart_deployment`.
 
 A fix made inside the running app is lost on the next deploy. Put the same
