@@ -1,0 +1,166 @@
+{
+  "schema": "nexlayer.plan.findings/2",
+  "app": "cue-ai",
+  "repo": "https://github.com/sasdeployer/cue-ai",
+  "branch": "main",
+  "analyzedAt": "2026-10-05T18:14:44.983Z",
+  "registered": false,
+  "techStack": [
+    {
+      "name": "React",
+      "kind": "framework",
+      "version": "18.3.1",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "package.json"
+        ]
+      }
+    },
+    {
+      "name": "Vite",
+      "kind": "build",
+      "version": "5.4.0",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "package.json"
+        ]
+      }
+    },
+    {
+      "name": "Go",
+      "kind": "language",
+      "version": "1.23",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "Dockerfile"
+        ]
+      }
+    },
+    {
+      "name": "PostgreSQL",
+      "kind": "database",
+      "version": "16",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "docker-compose.yml"
+        ]
+      }
+    },
+    {
+      "name": "pgvector",
+      "kind": "database",
+      "version": "pg16",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "docker-compose.yml"
+        ]
+      }
+    }
+  ],
+  "services": [
+    {
+      "name": "app",
+      "image": "registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:acee236-sameorigin",
+      "role": null,
+      "port": 8080,
+      "reachable": true,
+      "reachableBasis": {
+        "kind": "read",
+        "sources": [
+          "nexlayer.yaml"
+        ]
+      },
+      "envNames": [
+        "PORT",
+        "HOSTNAME",
+        "STATIC_DIR",
+        "DATABASE_URL",
+        "ALLOW_ORIGIN"
+      ]
+    },
+    {
+      "name": "postgres",
+      "image": "mirror.gcr.io/pgvector/pgvector:pg16",
+      "role": null,
+      "port": 5432,
+      "reachable": false,
+      "reachableBasis": {
+        "kind": "read",
+        "sources": [
+          "nexlayer.yaml"
+        ]
+      },
+      "envNames": [
+        "POSTGRES_USER",
+        "POSTGRES_PASSWORD",
+        "POSTGRES_DB",
+        "PGDATA"
+      ]
+    }
+  ],
+  "secrets": [
+    {
+      "name": "ANTHROPIC_API_KEY",
+      "required": true,
+      "buildTime": false,
+      "status": "not_set_live_ok"
+    },
+    {
+      "name": "OPENAI_API_KEY",
+      "required": true,
+      "buildTime": false,
+      "status": "not_set_live_ok"
+    }
+  ],
+  "secretsSummary": {
+    "total": 2,
+    "supplied": 0,
+    "neededFromHuman": 0
+  },
+  "codeGaps": [],
+  "buildConfig": {},
+  "deployNotes": [
+    "Database pod is separate and accessed by API via db.pod:5432.",
+    "API pod serves the built frontend static files from /app/dist, so a separate web pod is optional; if used, it must proxy API calls to api.pod:8080.",
+    "The API pod must include the reference engine directory (server/reference) for runtime compilation.",
+    "Use mirror.gcr.io/library/ images for all Docker Hub images.",
+    "No init script for database; the API server applies schema.sql on boot.",
+    "For production, set real API keys via environment variables, not placeholders."
+  ],
+  "intent": {
+    "purpose": "An AI-powered slide generation tool powered by the OpenAI API.",
+    "stage": "production"
+  },
+  "fromManifest": true,
+  "live": {
+    "applicationName": "cue-ai",
+    "environment": "zen-antelope",
+    "url": "https://zen-antelope-cue-ai.cloud.nexlayer.ai",
+    "status": "running"
+  },
+  "legacyDocs": [
+    "NEXLAYER.md",
+    "nexlayer.skills",
+    "nexlayer_fix.md",
+    ".github/workflows/nexlayer.yml"
+  ],
+  "builds": [
+    {
+      "pod": "app",
+      "image": "cue-ai",
+      "context": ".",
+      "dockerfile": "Dockerfile",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "nexlayer.yaml"
+        ]
+      }
+    }
+  ]
+}
