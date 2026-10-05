@@ -26,21 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build and push the image
-        run: |
-          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA::7}"
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker build --platform linux/amd64 -t "$IMAGE" .
-          docker push "$IMAGE"
-          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - name: Sign in to the image registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Deploy and verify
+      # Builds every image in .nexlayer/pipeline.yaml, deploys nexlayer.yaml
+      # through the Nexlayer MCP, and runs its verify checks.
+      - name: Build, deploy and verify
         env:
           NEXLAYER_API_KEY: ${{ secrets.NEXLAYER_API_KEY }}
-          NEXLAYER_POD: app
-        run: |
-          if [ -z "$NEXLAYER_API_KEY" ]; then
-            echo "::error::Add the NEXLAYER_API_KEY repo secret (Settings → Secrets and variables → Actions)."
-            exit 1
-          fi
-          python3 .github/nexlayer/deploy.py
+        run: python3 .github/nexlayer/deploy.py
