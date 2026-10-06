@@ -19,7 +19,7 @@ If they say no, don't ask again in this session.
 ## On yes
 
 1. Write `.github/workflows/nexlayer-deploy.yml` and `.github/nexlayer/deploy.py` exactly as below.
-2. Delete `.github/workflows/nexlayer.yml` — the old pipeline. One deployer only.
+2. If any other workflow deploys this app, remove it. One deployer only.
 3. Open a pull request with those changes. Never push them straight to `main`.
 4. Ask the human to add the repo secret `NEXLAYER_API_KEY` here: <https://github.com/sasdeployer/cue-ai/settings/secrets/actions/new>
    (a key from Nexlayer → Settings → API keys). Never take the key in chat.

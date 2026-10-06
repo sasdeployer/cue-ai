@@ -9,7 +9,7 @@ metadata:
 allowed-tools: Bash(npx:*) Bash(docker:*) Bash(git:*) Read Write Edit
 ---
 
-> Copy of the Nexlayer skill `ship-it-nexlayer` v3.0.0, taken 2026-10-05 from https://github.com/Nexlayer/nexlayer-plugin.
+> Copy of the Nexlayer skill `ship-it-nexlayer` v3.0.0, taken 2026-10-06 from https://github.com/Nexlayer/nexlayer-plugin.
 > If `nexlayer_get_skills` reports a newer version, follow that one instead.
 
 # Ship It with Nexlayer

@@ -3,13 +3,49 @@
   "app": "cue-ai",
   "repo": "https://github.com/sasdeployer/cue-ai",
   "branch": "main",
-  "analyzedAt": "2026-10-05T18:14:44.983Z",
-  "registered": false,
+  "analyzedAt": "2026-10-06T06:20:52.015Z",
+  "registered": true,
   "techStack": [
+    {
+      "name": "Go",
+      "kind": "language",
+      "version": "1.22+ (Docker build uses 1.23)",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "README.md",
+          "Dockerfile"
+        ]
+      }
+    },
+    {
+      "name": "TypeScript",
+      "kind": "language",
+      "version": "^5.5.3",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "package.json",
+          "tsconfig.json"
+        ]
+      }
+    },
+    {
+      "name": "Node.js",
+      "kind": "language",
+      "version": "20+ (Docker build uses 22)",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "README.md",
+          "Dockerfile"
+        ]
+      }
+    },
     {
       "name": "React",
       "kind": "framework",
-      "version": "18.3.1",
+      "version": "^18.3.1",
       "basis": {
         "kind": "read",
         "sources": [
@@ -20,7 +56,19 @@
     {
       "name": "Vite",
       "kind": "build",
-      "version": "5.4.0",
+      "version": "^5.4.0",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "package.json",
+          "vite.config.ts"
+        ]
+      }
+    },
+    {
+      "name": "framer-motion",
+      "kind": "framework",
+      "version": "^11.3.0",
       "basis": {
         "kind": "read",
         "sources": [
@@ -29,35 +77,37 @@
       }
     },
     {
-      "name": "Go",
-      "kind": "language",
-      "version": "1.23",
-      "basis": {
-        "kind": "read",
-        "sources": [
-          "Dockerfile"
-        ]
-      }
-    },
-    {
-      "name": "PostgreSQL",
+      "name": "PostgreSQL + pgvector",
       "kind": "database",
       "version": "16",
       "basis": {
         "kind": "read",
         "sources": [
-          "docker-compose.yml"
+          "docker-compose.yml",
+          ".env.example"
         ]
       }
     },
     {
-      "name": "pgvector",
-      "kind": "database",
-      "version": "pg16",
+      "name": "Docker / Docker Compose",
+      "kind": "infra",
+      "version": "",
       "basis": {
         "kind": "read",
         "sources": [
-          "docker-compose.yml"
+          "docker-compose.yml",
+          "Dockerfile"
+        ]
+      }
+    },
+    {
+      "name": "OpenAI / Anthropic LLM APIs",
+      "kind": "ml",
+      "version": "gpt-5.2 / claude-sonnet-5",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          ".env.example"
         ]
       }
     }
@@ -65,7 +115,7 @@
   "services": [
     {
       "name": "app",
-      "image": "registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:acee236-sameorigin",
+      "image": "registry.nexlayer.io/user_01kdnssb5ktgqr1mawtnz48s00/cue-ai:675630d",
       "role": null,
       "port": 8080,
       "reachable": true,
@@ -106,15 +156,17 @@
   "secrets": [
     {
       "name": "ANTHROPIC_API_KEY",
-      "required": true,
+      "required": false,
       "buildTime": false,
-      "status": "not_set_live_ok"
+      "status": "optional",
+      "optionalReason": "Alternative to OpenAI. Provider preference is OpenAI, then Anthropic, then canned sample decks."
     },
     {
       "name": "OPENAI_API_KEY",
-      "required": true,
+      "required": false,
       "buildTime": false,
-      "status": "not_set_live_ok"
+      "status": "optional",
+      "optionalReason": "Without any provider key the server runs in canned mode and returns sample decks. Visitors can also supply their own key in Settings."
     }
   ],
   "secretsSummary": {
@@ -125,30 +177,28 @@
   "codeGaps": [],
   "buildConfig": {},
   "deployNotes": [
-    "Database pod is separate and accessed by API via db.pod:5432.",
-    "API pod serves the built frontend static files from /app/dist, so a separate web pod is optional; if used, it must proxy API calls to api.pod:8080.",
-    "The API pod must include the reference engine directory (server/reference) for runtime compilation.",
-    "Use mirror.gcr.io/library/ images for all Docker Hub images.",
-    "No init script for database; the API server applies schema.sql on boot.",
-    "For production, set real API keys via environment variables, not placeholders."
+    "Two pods: 'app' is the single container from the repo Dockerfile, with the Go server serving the API and the built web app from ./dist on 8080. 'db' is a separate Postgres pod. The alpine image listed for 'app' is only the Dockerfile's runtime base; deploy the image built from the Dockerfile.",
+    "The app reaches Postgres at db.pod:5432. The Dockerfile bakes in DATABASE_URL pointing at localhost:5432, so it must be overridden at runtime with the db.pod form.",
+    "The server applies server/schema.sql itself on every boot, so no init script or volume mount is needed on the db pod.",
+    "docker-compose uses pgvector/pgvector:pg16, a namespaced Docker Hub image that fails on the cluster. The plan uses mirror.gcr.io/library/postgres:16 instead. If schema.sql runs CREATE EXTENSION vector, that image will fail at boot, so use a pgvector-enabled image that is reachable from the cluster, or remove the extension dependency.",
+    "The Dockerfile sets OPENAI_API_KEY and ANTHROPIC_API_KEY to 'nexlayer-placeholder'. The server may treat that as a configured key and call the providers with an invalid credential instead of falling back to canned mode. Override both with real keys, or set them empty, at deploy time.",
+    "ALLOW_ORIGIN (CORS) should be set to the public URL of the deployed app. It is the same origin when the Go server serves the web app.",
+    "The runtime image must include ./reference (the deck engine). compile.go reads it at runtime, and the Dockerfile already copies it.",
+    "The Dockerfile rewrites a bad 'go 1.26.5' directive in server/go.mod to 'go 1.23' during the build."
   ],
-  "intent": {
-    "purpose": "An AI-powered slide generation tool powered by the OpenAI API.",
-    "stage": "production"
-  },
+  "intent": null,
   "fromManifest": true,
-  "live": {
-    "applicationName": "cue-ai",
-    "environment": "zen-antelope",
-    "url": "https://zen-antelope-cue-ai.cloud.nexlayer.ai",
-    "status": "running"
-  },
+  "live": null,
   "legacyDocs": [
     "NEXLAYER.md",
     "nexlayer.skills",
-    "nexlayer_fix.md",
-    ".github/workflows/nexlayer.yml"
+    "nexlayer_fix.md"
   ],
+  "drafts": {
+    "manifest": false,
+    "dockerfiles": [],
+    "noTemplate": []
+  },
   "builds": [
     {
       "pod": "app",

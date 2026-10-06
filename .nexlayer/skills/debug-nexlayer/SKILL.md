@@ -9,7 +9,7 @@ metadata:
 allowed-tools: nexlayer_debug_*
 ---
 
-> Copy of the Nexlayer skill `debug-nexlayer` v1.1.0, taken 2026-10-05 from https://github.com/Nexlayer/nexlayer-plugin.
+> Copy of the Nexlayer skill `debug-nexlayer` v1.1.0, taken 2026-10-06 from https://github.com/Nexlayer/nexlayer-plugin.
 > If `nexlayer_get_skills` reports a newer version, follow that one instead.
 
 # Debug Mode — Nexlayer Deployments

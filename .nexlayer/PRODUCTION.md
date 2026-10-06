@@ -10,26 +10,12 @@ ask Nexlayer for it (see "How to deploy").
 | --- | --- |
 | Name | `cue-ai` |
 | Repo | `https://github.com/sasdeployer/cue-ai` on `main` |
-| Planned | 2026-10-05T18:14:44.983Z |
-| Registered with Nexlayer | not yet |
+| Planned | 2026-10-06T06:20:52.015Z |
+| Registered with Nexlayer | yes |
 
 `.nexlayer/plan.lock` pins the commit this plan was written against. If HEAD
 has moved and you changed how the app starts, runs, or what it needs,
 re-check before deploying.
-
-## Running now
-
-`cue-ai` is already deployed on Nexlayer (running when this plan was written).
-
-| | |
-| --- | --- |
-| applicationName | `cue-ai` |
-| environment | `zen-antelope` |
-| URL | <https://zen-antelope-cue-ai.cloud.nexlayer.ai> |
-
-Every Nexlayer tool that targets this app — status, logs, events, the debug
-proxy — takes these two values. Use them as written; do not ask for them.
-A redeploy updates this deployment in place.
 
 ## The deploy config
 
@@ -37,12 +23,6 @@ This repo already has a `nexlayer.yaml`, and it is the source of truth: the
 services in this plan were read from it (`app`, `postgres`).
 Deploy from it. Change it for a reason, never to match a fresh analysis —
 the analysis infers; this file is what runs.
-
-## What this app is for
-
-An AI-powered slide generation tool powered by the OpenAI API.
-
-The human calls this headed for production.
 
 ## Can this deploy right now?
 
@@ -60,12 +40,21 @@ If Nexlayer tools are not available to you, the human runs
 
 ## Secrets
 
+Keys reach the app by name. In `nexlayer.yaml`, write `${NAME}` where the
+value goes (e.g. `OPENAI_API_KEY: "${OPENAI_API_KEY}"`) — never the value.
+When you deploy through the Nexlayer MCP, Nexlayer fills each name from this
+app's Secrets. Values never go in this repo, the chat, or your context.
+
 | Key | Status |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | not set — the live app runs without it (optional) |
-| `OPENAI_API_KEY` | not set — the live app runs without it (optional) |
+| `ANTHROPIC_API_KEY` | not set — optional, the app runs without it |
+| `OPENAI_API_KEY` | not set — optional, the app runs without it |
 
 Keys marked supplied are handled. Do not ask for them again.
+
+Optional keys: leave them out of `nexlayer.yaml` unless the human wants that
+feature on — then they add the key in the same Secrets page and you add its
+`${NAME}` reference.
 
 ## What was inferred rather than read
 

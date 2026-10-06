@@ -5,8 +5,7 @@
 app: cue-ai
 deploy:
   config: nexlayer.yaml
-  environment: zen-antelope
-  url: 'https://zen-antelope-cue-ai.cloud.nexlayer.ai'
+  environment: ~   # set by the first deploy
   through: nexlayer-mcp          # validate -> deploy -> status; nothing deploys around it
 build:
   - pod: app             # the nexlayer.yaml pod that runs it
@@ -32,7 +31,7 @@ verify:                         # done means all of these pass
   - url: /                       # the live URL answers 2xx/3xx with a real page
 secrets:                        # names only — values live in Nexlayer
   - name: ANTHROPIC_API_KEY
-    status: not_set_live_ok
+    status: optional
   - name: OPENAI_API_KEY
-    status: not_set_live_ok
+    status: optional
 rollback: redeploy the previous image tag from the Nexlayer deploy history
