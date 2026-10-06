@@ -3,7 +3,7 @@
   "app": "cue-ai",
   "repo": "https://github.com/sasdeployer/cue-ai",
   "branch": "main",
-  "analyzedAt": "2026-10-06T06:20:52.015Z",
+  "analyzedAt": "2026-10-06T06:21:21.034Z",
   "registered": true,
   "techStack": [
     {
@@ -186,7 +186,10 @@
     "The runtime image must include ./reference (the deck engine). compile.go reads it at runtime, and the Dockerfile already copies it.",
     "The Dockerfile rewrites a bad 'go 1.26.5' directive in server/go.mod to 'go 1.23' during the build."
   ],
-  "intent": null,
+  "intent": {
+    "purpose": "this is just a test",
+    "stage": "experiment"
+  },
   "fromManifest": true,
   "live": null,
   "legacyDocs": [

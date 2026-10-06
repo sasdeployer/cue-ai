@@ -10,7 +10,7 @@ ask Nexlayer for it (see "How to deploy").
 | --- | --- |
 | Name | `cue-ai` |
 | Repo | `https://github.com/sasdeployer/cue-ai` on `main` |
-| Planned | 2026-10-06T06:20:52.015Z |
+| Planned | 2026-10-06T06:21:21.034Z |
 | Registered with Nexlayer | yes |
 
 `.nexlayer/plan.lock` pins the commit this plan was written against. If HEAD
@@ -23,6 +23,12 @@ This repo already has a `nexlayer.yaml`, and it is the source of truth: the
 services in this plan were read from it (`app`, `postgres`).
 Deploy from it. Change it for a reason, never to match a fresh analysis —
 the analysis infers; this file is what runs.
+
+## What this app is for
+
+this is just a test
+
+The human calls this an experiment.
 
 ## Can this deploy right now?
 
