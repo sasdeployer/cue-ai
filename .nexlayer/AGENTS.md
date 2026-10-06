@@ -11,7 +11,7 @@ domains, logs, fixing it in production.
 2. `.nexlayer/todo.md` — what is still open, and who closes it.
 3. The skill for the job (below). Something broken: `.nexlayer/TROUBLESHOOTING.md`.
 
-Older Nexlayer files in this repo (`NEXLAYER.md`, `nexlayer.skills`, `nexlayer_fix.md`, `.github/workflows/nexlayer.yml`) predate this
+Older Nexlayer files in this repo (`NEXLAYER.md`, `nexlayer.skills`, `nexlayer_fix.md`) predate this
 plan. Where they disagree with `.nexlayer/`, follow `.nexlayer/`.
 
 ## Connect to Nexlayer

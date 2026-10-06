@@ -8,7 +8,7 @@ Two lists, split by who can actually close the item.
 
 ## Needs the human
 
-- Nothing blocking. Some optional keys are not set; the live app runs without them.
+- Nothing blocking. Some optional keys are not set; the app runs without them.
 
 ---
 
