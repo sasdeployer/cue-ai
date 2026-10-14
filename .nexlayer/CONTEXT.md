@@ -5,21 +5,20 @@ starts with the same picture. Read this before proposing infrastructure
 changes.
 
 - **Repo** `https://github.com/sasdeployer/cue-ai` on `main`
-- **Analyzed** 2026-10-06T06:21:21.034Z
+- **Analyzed** 2026-10-14T22:26:08.457Z
 
 ## Stack
 
 | Component | Version | How we know |
 | --- | --- | --- |
-| Go | 1.22+ (Docker build uses 1.23) | read from `README.md`, `Dockerfile` |
-| TypeScript | ^5.5.3 | read from `package.json`, `tsconfig.json` |
-| Node.js | 20+ (Docker build uses 22) | read from `README.md`, `Dockerfile` |
-| React | ^18.3.1 | read from `package.json` |
-| Vite | ^5.4.0 | read from `package.json`, `vite.config.ts` |
-| framer-motion | ^11.3.0 | read from `package.json` |
+| Go | 1.23 | read from `Dockerfile`, `server/go.mod` |
+| React | 18.3 | read from `package.json` |
+| Vite | 5.4 | read from `package.json`, `vite.config.ts` |
 | PostgreSQL + pgvector | 16 | read from `docker-compose.yml`, `.env.example` |
-| Docker / Docker Compose |  | read from `docker-compose.yml`, `Dockerfile` |
-| OpenAI / Anthropic LLM APIs | gpt-5.2 / claude-sonnet-5 | read from `.env.example` |
+| TypeScript | 5.5 | read from `tsconfig.json`, `package.json` |
+| Framer Motion | 11.3 | read from `package.json` |
+| OpenAI API | gpt-5.2 | read from `.env.example`, `README.md` |
+| Anthropic API | claude-sonnet-5 | read from `.env.example` |
 
 ## How Nexlayer will run it
 
@@ -43,29 +42,17 @@ value goes (e.g. `OPENAI_API_KEY: "${OPENAI_API_KEY}"`) — never the value.
 When you deploy through the Nexlayer MCP, Nexlayer fills each name from this
 app's Secrets. Values never go in this repo, the chat, or your context.
 
-- `ANTHROPIC_API_KEY` — optional, not set. Alternative to OpenAI. Provider preference is OpenAI, then Anthropic, then canned sample decks.
-- `OPENAI_API_KEY` — optional, not set. Without any provider key the server runs in canned mode and returns sample decks. Visitors can also supply their own key in Settings.
-
-## What the human told us
-
-**Purpose.** this is just a test
-
-**Stage.** This is an experiment.
-
-Said by a person, not derived from the code. Where this contradicts what
-the repo looks like, the person is right about intent and the repo is
-right about what exists today.
+- `ANTHROPIC_API_KEY` — optional, not set. Alternative AI backend; if neither OpenAI nor Anthropic key is set, app starts successfully in canned mode per README
+- `OPENAI_API_KEY` — optional, not set. Without it Cue runs in canned mode serving a real sample deck; users can also enter their own key per-request from the Settings UI
 
 ## Notes from the analysis
 
-- Two pods: 'app' is the single container from the repo Dockerfile, with the Go server serving the API and the built web app from ./dist on 8080. 'db' is a separate Postgres pod. The alpine image listed for 'app' is only the Dockerfile's runtime base; deploy the image built from the Dockerfile.
-- The app reaches Postgres at db.pod:5432. The Dockerfile bakes in DATABASE_URL pointing at localhost:5432, so it must be overridden at runtime with the db.pod form.
-- The server applies server/schema.sql itself on every boot, so no init script or volume mount is needed on the db pod.
-- docker-compose uses pgvector/pgvector:pg16, a namespaced Docker Hub image that fails on the cluster. The plan uses mirror.gcr.io/library/postgres:16 instead. If schema.sql runs CREATE EXTENSION vector, that image will fail at boot, so use a pgvector-enabled image that is reachable from the cluster, or remove the extension dependency.
-- The Dockerfile sets OPENAI_API_KEY and ANTHROPIC_API_KEY to 'nexlayer-placeholder'. The server may treat that as a configured key and call the providers with an invalid credential instead of falling back to canned mode. Override both with real keys, or set them empty, at deploy time.
-- ALLOW_ORIGIN (CORS) should be set to the public URL of the deployed app. It is the same origin when the Go server serves the web app.
-- The runtime image must include ./reference (the deck engine). compile.go reads it at runtime, and the Dockerfile already copies it.
-- The Dockerfile rewrites a bad 'go 1.26.5' directive in server/go.mod to 'go 1.23' during the build.
+- App reaches the database pod via db.pod:5432 using the DATABASE_URL environment variable
+- pgvector/pgvector:pg16 (docker-compose) is a Docker Hub namespaced image that fails on Nexlayer; use mirror.gcr.io/library/postgres:16-alpine and install pgvector extension via the server's schema.sql (CREATE EXTENSION IF NOT EXISTS vector)
+- The Go binary applies server/schema.sql on every boot (NewStore), so no init script mount is needed on the db pod
+- The frontend is statically compiled into the Go binary (served from ./dist), so a single app pod serves both API and UI
+- The reference/ directory (deck engine templates) must be present in the image at runtime for compile.go to generate slides
+- Set ALLOW_ORIGIN to the external URL of the app pod or use * for development; CORS is enforced by the Go server
 
 ## Talking to Nexlayer
 

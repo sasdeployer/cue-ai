@@ -13,7 +13,7 @@ Every tool below takes the same two values. They are already known:
 
 | Symptom | Start with |
 | --- | --- |
-| Deploy didn't come up, or a service keeps restarting | `nexlayer_check_deployment_status` → `nexlayer_get_deployment_logs` for that service → `nexlayer_get_deployment_events` |
+| Deploy didn't come up, or a service keeps restarting | `nexlayer_verify_deploy` (status, logs and the reason in one call) → `nexlayer_get_deployment_logs` for that service → `nexlayer_get_deployment_events` |
 | The site answers but with errors (500s, blank page) | `nexlayer_get_deployment_logs`, then the debug proxy (below) to look inside |
 | One service can't reach another | debug proxy → `nexlayer_debug_proxy_exec` / `nexlayer_debug_proxy_http` against the full service name above (never localhost) |
 | Database errors, missing tables or data | debug proxy → `nexlayer_debug_db_query` with host `cue-ai-postgres-service` and the user, password and database from `DATABASE_URL` in `nexlayer.yaml` |
@@ -48,4 +48,4 @@ Full guide: `.nexlayer/skills/debug-nexlayer/SKILL.md`.
 
 ## Done means verified
 
-`nexlayer_check_deployment_status` healthy for every service, and the URL answers with a real page — the `verify` list in `.nexlayer/pipeline.yaml`.
+`nexlayer_verify_deploy` says ✓ Working: every service running, and the URL answers — the `verify` list in `.nexlayer/pipeline.yaml`.

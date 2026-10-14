@@ -40,6 +40,7 @@ history. Pull requests never deploy to production.
 # it's live. Set up by a coding agent from .nexlayer/skills/continuous-deployment.
 #
 # Needs one repo secret: NEXLAYER_API_KEY (Nexlayer → Settings → API keys).
+# Images go to Nexlayer's registry; the MCP signs each push — no registry setup.
 name: Deploy to Nexlayer
 
 on:
@@ -54,16 +55,12 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Sign in to the image registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       # Builds every image in .nexlayer/pipeline.yaml, deploys nexlayer.yaml
       # through the Nexlayer MCP, and runs its verify checks.
@@ -82,9 +79,12 @@ this repo's nexlayer.yaml through the Nexlayer MCP — the same tools a coding
 agent calls (validate -> deploy -> status) — and verify. CI is one more MCP
 client, so Nexlayer keeps one deploy path and one history.
 
+Images go to Nexlayer's registry (registry.nexlayer.io): the MCP's
+nexlayer_build_and_push_image names each image and signs the push, so there's
+no registry to set up and no pull secret in nexlayer.yaml.
+
 Env: NEXLAYER_API_KEY (repo secret)
-     REGISTRY  where images go, e.g. ghcr.io/<owner> (default) or
-               registry.nexlayer.io/<your user id>
+     REGISTRY  only to push somewhere else (e.g. ghcr.io/<owner>; you log in)
      TAG       image tag (default: the commit, short)
 Standard library only.
 """
@@ -181,6 +181,24 @@ def with_image(yaml, pod, image):
     return "\n".join(out) + "\n"
 
 
+def nexlayer_image(image, tag, logged_in):
+    """Nexlayer's registry reference for this image, signed in once. The
+    credential goes straight to docker login — never printed."""
+    out = tool("nexlayer_build_and_push_image", imageName=image, tag=tag)
+    if out.startswith("## Can't push"):
+        fail(out)
+    ref = re.search(r"\*\*Target image:\*\* `([^`]+)`", out)
+    cred = re.search(r"## Registry credential \(for docker login\)\n\n```\n(.+?)\n```", out, re.S)
+    if not (ref and cred):
+        fail("nexlayer_build_and_push_image gave no image reference or credential")
+    if not logged_in:
+        token = cred.group(1).strip()
+        subprocess.run(["docker", "login", ref.group(1).split("/")[0], "-u", "oauth2accesstoken",
+                        "--password-stdin"], input=token.encode(), check=True,
+                       stdout=subprocess.DEVNULL)
+    return ref.group(1)
+
+
 def sh(*cmd):
     print("+", " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True)
@@ -189,8 +207,7 @@ def sh(*cmd):
 def main():
     if not KEY:
         fail("NEXLAYER_API_KEY is not set (repo Settings → Secrets and variables → Actions).")
-    registry = os.environ.get("REGISTRY") or (
-        "ghcr.io/" + os.environ.get("GITHUB_REPOSITORY_OWNER", "").lower())
+    registry = os.environ.get("REGISTRY")  # unset: Nexlayer's registry
     tag = os.environ.get("TAG") or subprocess.check_output(
         ["git", "rev-parse", "--short=7", "HEAD"]).decode().strip()
 
@@ -200,16 +217,22 @@ def main():
     config = open("nexlayer.yaml").read()
     app = re.search(r"^\s*name:\s*[\"']?([\w.-]+)", config, re.M).group(1)
 
+    call("initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
+                        "clientInfo": {"name": "github-actions", "version": "2"}})
+    call("notifications/initialized", notify=True)
+
+    logged_in = False
     for b in builds:
-        ref = f"{registry}/{b['image']}:{tag}"
+        if registry:
+            ref = f"{registry}/{b['image']}:{tag}"
+        else:
+            ref = nexlayer_image(b["image"], tag, logged_in)
+            logged_in = True
         sh("docker", "build", "--platform", b.get("platform", "linux/amd64"),
            "-f", b.get("dockerfile", "Dockerfile"), "-t", ref, b.get("context", "."))
         sh("docker", "push", ref)
         config = with_image(config, b["pod"], ref)
 
-    call("initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
-                        "clientInfo": {"name": "github-actions", "version": "2"}})
-    call("notifications/initialized", notify=True)
     print(tool("nexlayer_validate_yaml", yamlContent=config))
     out = tool("nexlayer_deploy", yamlContent=config)
     print(out)

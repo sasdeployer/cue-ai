@@ -3,49 +3,25 @@
   "app": "cue-ai",
   "repo": "https://github.com/sasdeployer/cue-ai",
   "branch": "main",
-  "analyzedAt": "2026-10-06T06:21:21.034Z",
+  "analyzedAt": "2026-10-14T22:26:08.457Z",
   "registered": true,
   "techStack": [
     {
       "name": "Go",
       "kind": "language",
-      "version": "1.22+ (Docker build uses 1.23)",
+      "version": "1.23",
       "basis": {
         "kind": "read",
         "sources": [
-          "README.md",
-          "Dockerfile"
-        ]
-      }
-    },
-    {
-      "name": "TypeScript",
-      "kind": "language",
-      "version": "^5.5.3",
-      "basis": {
-        "kind": "read",
-        "sources": [
-          "package.json",
-          "tsconfig.json"
-        ]
-      }
-    },
-    {
-      "name": "Node.js",
-      "kind": "language",
-      "version": "20+ (Docker build uses 22)",
-      "basis": {
-        "kind": "read",
-        "sources": [
-          "README.md",
-          "Dockerfile"
+          "Dockerfile",
+          "server/go.mod"
         ]
       }
     },
     {
       "name": "React",
       "kind": "framework",
-      "version": "^18.3.1",
+      "version": "18.3",
       "basis": {
         "kind": "read",
         "sources": [
@@ -56,23 +32,12 @@
     {
       "name": "Vite",
       "kind": "build",
-      "version": "^5.4.0",
+      "version": "5.4",
       "basis": {
         "kind": "read",
         "sources": [
           "package.json",
           "vite.config.ts"
-        ]
-      }
-    },
-    {
-      "name": "framer-motion",
-      "kind": "framework",
-      "version": "^11.3.0",
-      "basis": {
-        "kind": "read",
-        "sources": [
-          "package.json"
         ]
       }
     },
@@ -89,21 +54,44 @@
       }
     },
     {
-      "name": "Docker / Docker Compose",
-      "kind": "infra",
-      "version": "",
+      "name": "TypeScript",
+      "kind": "language",
+      "version": "5.5",
       "basis": {
         "kind": "read",
         "sources": [
-          "docker-compose.yml",
-          "Dockerfile"
+          "tsconfig.json",
+          "package.json"
         ]
       }
     },
     {
-      "name": "OpenAI / Anthropic LLM APIs",
+      "name": "Framer Motion",
+      "kind": "tool",
+      "version": "11.3",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "package.json"
+        ]
+      }
+    },
+    {
+      "name": "OpenAI API",
       "kind": "ml",
-      "version": "gpt-5.2 / claude-sonnet-5",
+      "version": "gpt-5.2",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          ".env.example",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "name": "Anthropic API",
+      "kind": "ml",
+      "version": "claude-sonnet-5",
       "basis": {
         "kind": "read",
         "sources": [
@@ -159,14 +147,14 @@
       "required": false,
       "buildTime": false,
       "status": "optional",
-      "optionalReason": "Alternative to OpenAI. Provider preference is OpenAI, then Anthropic, then canned sample decks."
+      "optionalReason": "Alternative AI backend; if neither OpenAI nor Anthropic key is set, app starts successfully in canned mode per README"
     },
     {
       "name": "OPENAI_API_KEY",
       "required": false,
       "buildTime": false,
       "status": "optional",
-      "optionalReason": "Without any provider key the server runs in canned mode and returns sample decks. Visitors can also supply their own key in Settings."
+      "optionalReason": "Without it Cue runs in canned mode serving a real sample deck; users can also enter their own key per-request from the Settings UI"
     }
   ],
   "secretsSummary": {
@@ -177,19 +165,14 @@
   "codeGaps": [],
   "buildConfig": {},
   "deployNotes": [
-    "Two pods: 'app' is the single container from the repo Dockerfile, with the Go server serving the API and the built web app from ./dist on 8080. 'db' is a separate Postgres pod. The alpine image listed for 'app' is only the Dockerfile's runtime base; deploy the image built from the Dockerfile.",
-    "The app reaches Postgres at db.pod:5432. The Dockerfile bakes in DATABASE_URL pointing at localhost:5432, so it must be overridden at runtime with the db.pod form.",
-    "The server applies server/schema.sql itself on every boot, so no init script or volume mount is needed on the db pod.",
-    "docker-compose uses pgvector/pgvector:pg16, a namespaced Docker Hub image that fails on the cluster. The plan uses mirror.gcr.io/library/postgres:16 instead. If schema.sql runs CREATE EXTENSION vector, that image will fail at boot, so use a pgvector-enabled image that is reachable from the cluster, or remove the extension dependency.",
-    "The Dockerfile sets OPENAI_API_KEY and ANTHROPIC_API_KEY to 'nexlayer-placeholder'. The server may treat that as a configured key and call the providers with an invalid credential instead of falling back to canned mode. Override both with real keys, or set them empty, at deploy time.",
-    "ALLOW_ORIGIN (CORS) should be set to the public URL of the deployed app. It is the same origin when the Go server serves the web app.",
-    "The runtime image must include ./reference (the deck engine). compile.go reads it at runtime, and the Dockerfile already copies it.",
-    "The Dockerfile rewrites a bad 'go 1.26.5' directive in server/go.mod to 'go 1.23' during the build."
+    "App reaches the database pod via db.pod:5432 using the DATABASE_URL environment variable",
+    "pgvector/pgvector:pg16 (docker-compose) is a Docker Hub namespaced image that fails on Nexlayer; use mirror.gcr.io/library/postgres:16-alpine and install pgvector extension via the server's schema.sql (CREATE EXTENSION IF NOT EXISTS vector)",
+    "The Go binary applies server/schema.sql on every boot (NewStore), so no init script mount is needed on the db pod",
+    "The frontend is statically compiled into the Go binary (served from ./dist), so a single app pod serves both API and UI",
+    "The reference/ directory (deck engine templates) must be present in the image at runtime for compile.go to generate slides",
+    "Set ALLOW_ORIGIN to the external URL of the app pod or use * for development; CORS is enforced by the Go server"
   ],
-  "intent": {
-    "purpose": "this is just a test",
-    "stage": "experiment"
-  },
+  "intent": null,
   "fromManifest": true,
   "live": null,
   "legacyDocs": [
@@ -199,8 +182,90 @@
   ],
   "drafts": {
     "manifest": false,
+    "by": null,
     "dockerfiles": [],
     "noTemplate": []
+  },
+  "productionPlan": {
+    "summary": "Cue is a Go backend that serves both a compiled React frontend and an AI-powered deck generation API on port 8080, backed by PostgreSQL with pgvector for deck persistence. The Go binary embeds the built frontend from ./dist and the deck engine templates from ./reference — a single app pod handles everything. The one thing that matters most: the PostgreSQL password must never be a literal in the yaml, or the deploy will run with throwaway credentials that anyone can guess.",
+    "decisions": [
+      {
+        "topic": "services",
+        "decision": "Two pods: app (Go binary serving API + static frontend on 8080) and postgres (pgvector). No separate frontend pod needed because the Go binary serves the built Vite output from ./dist at runtime.",
+        "why": "server/main.go registers both API routes and a static file handler for ./dist in the same Gin server, so one process serves everything.",
+        "evidence": [
+          "server/main.go",
+          "Dockerfile"
+        ]
+      },
+      {
+        "topic": "database",
+        "decision": "PostgreSQL with pgvector extension (pgvector/pgvector:pg16) in its own pod with a 10 Gi volume at /var/lib/postgresql. PGDATA is set to a subdirectory to survive the lost+found problem.",
+        "why": "schema.sql runs CREATE EXTENSION IF NOT EXISTS vector on every boot, which requires the pgvector binary to be present in the image; stock postgres:16-alpine does not include it.",
+        "evidence": [
+          "server/schema.sql",
+          "docker-compose.yml",
+          "nexlayer.yaml"
+        ]
+      },
+      {
+        "topic": "keys",
+        "decision": "OPENAI_API_KEY and ANTHROPIC_API_KEY are intentionally left unset in the yaml — the app runs in canned mode (sample decks) and visitors supply their own keys per-request via X-User-OpenAI-Key header.",
+        "why": "main.go selects a provider only when the key is non-empty; setting a placeholder would select OpenAI and then every generation fails. The BYOK path in handlers.go lets each visitor use their own key without any server-side secret.",
+        "evidence": [
+          "server/main.go",
+          ".env.example"
+        ]
+      },
+      {
+        "topic": "build",
+        "decision": "The existing multi-stage Dockerfile builds the frontend with node:22-alpine, the Go backend with golang:1.23-alpine, and produces a minimal alpine:3.20 runtime image. It patches the go.mod version typo and copies the reference/ engine directory for runtime template resolution.",
+        "why": "compile.go's findEngineDir resolves deck templates from ./reference/engine at runtime — without it every slide generation fails the compile check.",
+        "evidence": [
+          "Dockerfile",
+          "server/go.mod"
+        ]
+      },
+      {
+        "topic": "health",
+        "decision": "GET /api/health returns 200 with {ok: true, llm: '<provider name>'} — use this as the deployment readiness check.",
+        "why": "main.go registers r.GET(\"/api/health\", …) unconditionally; it confirms both HTTP serving and database connectivity (store is initialized before routes are registered).",
+        "evidence": [
+          "server/main.go"
+        ]
+      }
+    ],
+    "fix_before_production": [
+      {
+        "title": "Replace literal Postgres password with ${POSTGRES_PASSWORD}",
+        "why": "The yaml currently has POSTGRES_PASSWORD: \"cueai\" and embeds cueai:cueai in DATABASE_URL — anyone with access to the deployment config gets database credentials. This is a secret exposure.",
+        "where": "nexlayer.yaml",
+        "severity": "blocker"
+      }
+    ],
+    "verify_after_deploy": [
+      "GET /api/health on the app URL returns 200 with {\"ok\": true, \"llm\": \"canned\"}",
+      "GET / on the app URL returns 200 with the React landing page HTML",
+      "POST /api/decks with a test prompt and a valid X-User-OpenAI-Key header returns a deck JSON (confirms DB writes succeed and the pgvector extension loaded)",
+      "Restart the postgres pod and confirm GET /api/decks still returns previously created decks (confirms volume persistence)"
+    ],
+    "open_questions": [
+      "Should an OpenAI or Anthropic key be set server-side for a production demo, or is BYOK-only acceptable for the target users?",
+      "The pgvector image (pgvector/pgvector:pg16) is hosted on Docker Hub and may hit rate limits — confirm it pulls cleanly through the GCR mirror on first deploy, or switch to building a custom Postgres image with pgvector compiled in."
+    ],
+    "nexlayer_yaml": "application:\n  name: cue-ai\n  pods:\n    - name: app\n      image: \"registry.nexlayer.io/YOUR_USER_ID/cue-ai-app:planned\"\n      path: /\n      servicePorts:\n        - 8080\n      vars:\n        PORT: \"8080\"\n        HOSTNAME: \"0.0.0.0\"\n        STATIC_DIR: \"./dist\"\n        DATABASE_URL: \"postgres://cueai:${POSTGRES_PASSWORD}@postgres.pod:5432/cueai?sslmode=disable\"\n        ALLOW_ORIGIN: \"<% URL %>\"\n    - name: postgres\n      image: \"pgvector/pgvector:pg16\"\n      servicePorts:\n        - 5432\n      vars:\n        POSTGRES_USER: \"cueai\"\n        POSTGRES_PASSWORD: \"${POSTGRES_PASSWORD}\"\n        POSTGRES_DB: \"cueai\"\n        PGDATA: \"/var/lib/postgresql/data/pgdata\"\n      volumes:\n        - name: postgres-data\n          size: 10Gi\n          mountPath: /var/lib/postgresql\n",
+    "builds": [
+      {
+        "service": "app",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "exists": true,
+        "notes": ""
+      }
+    ],
+    "yaml_valid": true,
+    "model": "deepseek-v4-flash",
+    "dropped_evidence": 0
   },
   "builds": [
     {
