@@ -3,7 +3,7 @@
   "app": "cue-ai",
   "repo": "https://github.com/sasdeployer/cue-ai",
   "branch": "main",
-  "analyzedAt": "2026-10-14T22:26:08.457Z",
+  "analyzedAt": "2026-10-14T22:27:18.398Z",
   "registered": true,
   "techStack": [
     {
@@ -172,7 +172,9 @@
     "The reference/ directory (deck engine templates) must be present in the image at runtime for compile.go to generate slides",
     "Set ALLOW_ORIGIN to the external URL of the app pod or use * for development; CORS is enforced by the Go server"
   ],
-  "intent": null,
+  "intent": {
+    "stage": "side-project"
+  },
   "fromManifest": true,
   "live": null,
   "legacyDocs": [

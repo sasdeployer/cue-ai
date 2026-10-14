@@ -10,7 +10,7 @@ ask Nexlayer for it (see "How to deploy").
 | --- | --- |
 | Name | `cue-ai` |
 | Repo | `https://github.com/sasdeployer/cue-ai` on `main` |
-| Planned | 2026-10-14T22:26:08.457Z |
+| Planned | 2026-10-14T22:27:18.398Z |
 | Registered with Nexlayer | yes |
 
 `.nexlayer/plan.lock` pins the commit this plan was written against. If HEAD

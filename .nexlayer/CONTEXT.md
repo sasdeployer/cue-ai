@@ -5,7 +5,7 @@ starts with the same picture. Read this before proposing infrastructure
 changes.
 
 - **Repo** `https://github.com/sasdeployer/cue-ai` on `main`
-- **Analyzed** 2026-10-14T22:26:08.457Z
+- **Analyzed** 2026-10-14T22:27:18.398Z
 
 ## Stack
 
@@ -44,6 +44,14 @@ app's Secrets. Values never go in this repo, the chat, or your context.
 
 - `ANTHROPIC_API_KEY` — optional, not set. Alternative AI backend; if neither OpenAI nor Anthropic key is set, app starts successfully in canned mode per README
 - `OPENAI_API_KEY` — optional, not set. Without it Cue runs in canned mode serving a real sample deck; users can also enter their own key per-request from the Settings UI
+
+## What the human told us
+
+**Stage.** This is a side project.
+
+Said by a person, not derived from the code. Where this contradicts what
+the repo looks like, the person is right about intent and the repo is
+right about what exists today.
 
 ## Notes from the analysis
 
